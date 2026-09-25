@@ -429,4 +429,3 @@ impl SinopecParser {
         Ok(windows)
     }
 }
-
