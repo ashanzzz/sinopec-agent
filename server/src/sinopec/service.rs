@@ -417,7 +417,7 @@ impl SinopecService {
         let idempotency_key = req
             .idempotency_key
             .clone()
-            .unwrap_or_else(|| format!("idem_{}", &request_hash[..24]));
+            .unwrap_or_else(|| format!("idem_{}", &request_hash[0..24]));
 
         if let Some(existing) = self
             .store
@@ -710,3 +710,4 @@ impl SinopecService {
             .await
     }
 }
+

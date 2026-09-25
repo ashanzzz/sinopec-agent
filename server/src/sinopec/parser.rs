@@ -190,7 +190,7 @@ impl SinopecParser {
             .map(|s| s.to_string());
 
         let card = Card {
-            remote_id: format!("card_{}", &masked_card.replace('*', "")),
+            remote_id: format!("card_{}", masked_card.replace('*', "")),
             masked_card_no: masked_card.clone(),
             card_alias: alias,
             card_type,
@@ -429,3 +429,4 @@ impl SinopecParser {
         Ok(windows)
     }
 }
+
