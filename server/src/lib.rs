@@ -1,0 +1,13 @@
+pub mod api;
+pub mod auth;
+pub mod browser;
+pub mod config;
+pub mod downloads;
+pub mod error;
+pub mod human;
+pub mod mcp;
+pub mod research;
+pub mod sinopec;
+pub mod state;
+pub mod storage;
+pub mod telemetry;

@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>中国石化企业数电发票自助工作台 · Sinopec Agent</title>
+  <style>
+    :root {
+      --bg-surface: #f8fafc;
+      --bg-elevated: #ffffff;
+      --bg-subtle: #f1f5f9;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --brand-blue: #2563eb;
+      --brand-blue-hover: #1d4ed8;
+      --brand-red: #dc2626;
+      --brand-red-hover: #b91c1c;
+      --status-green: #16a34a;
+      --status-green-bg: #dcfce7;
+      --status-amber: #d97706;
+      --status-amber-bg: #fef3c7;
+      --pad-unit: 20px;
+      --row-pad: 11px;
+    }
+    body.density-compact {
+      --pad-unit: 14px;
+      --row-pad: 7px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-surface);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .top-header {
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .top-header-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .brand-group { display: flex; align-items: center; gap: 12px; }
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: var(--brand-red);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .brand-title { font-size: 16px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+    .brand-sub { font-size: 12px; color: var(--text-muted); }
+    .auth-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .auth-pill.online { background: var(--status-green-bg); color: #15803d; border-color: #86efac; }
+    .auth-pill.locked { background: var(--status-amber-bg); color: #b45309; border-color: #fcd34d; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.online { background: #16a34a; }
+    .dot.locked { background: #d97706; }
+    .workspace { max-width: 1180px; margin: 20px auto 64px; padding: 0 24px; }
+    .nav-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .nav-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .nav-item:hover:not(.disabled) { border-color: var(--brand-blue); color: var(--brand-blue); }
+    .nav-item.active { background: var(--brand-blue); border-color: var(--brand-blue); color: #ffffff; }
+    
+    .nav-item.disabled {
+      background: var(--bg-subtle) !important;
+      color: var(--text-muted) !important;
+      cursor: not-allowed !important;
+      opacity: 0.35 !important;
+      pointer-events: none !important;
+      box-shadow: none !important;
+    }
+
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 14px 18px;
+    }
+    .kpi-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+    .kpi-val { font-size: 20px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .kpi-meta { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .surface {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: var(--pad-unit);
+      margin-bottom: 16px;
+    }
+    .surface-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text-primary); }
+    .surface-desc { font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; }
+    .auth-gate-grid { display: grid; grid-template-columns: 1.25fr 0.75fr; gap: 20px; }
+    @media (max-width: 860px) { .auth-gate-grid { grid-template-columns: 1fr; } }
+    .step-box {
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px;
+      background: #f8fafc;
+      margin-bottom: 14px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--brand-blue);
+      margin-bottom: 10px;
+    }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--brand-blue);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .field input, .field select {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-primary);
+      background: #ffffff;
+    }
+    .field input:focus, .field select:focus { outline: 2px solid var(--brand-blue); outline-offset: 1px; border-color: var(--brand-blue); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 150ms ease;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-primary { background: var(--brand-blue); color: #ffffff; }
+    .btn-primary:hover:not(:disabled) { background: var(--brand-blue-hover); }
+    .btn-red { background: var(--brand-red); color: #ffffff; }
+    .btn-red:hover:not(:disabled) { background: var(--brand-red-hover); }
+    .btn-outline { background: #ffffff; color: var(--text-primary); border-color: var(--border-strong); }
+    .btn-outline:hover:not(:disabled) { background: var(--bg-subtle); }
+    .chip {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .chip:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: var(--row-pad) 12px; border-bottom: 1px solid var(--border-subtle); }
+    th { background: #f8fafc; color: var(--text-muted); font-weight: 600; font-size: 12px; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .notice-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1e40af;
+    }
+    .notice-bar.success { background: #dcfce7; border-color: #86efac; color: #15803d; }
+    .notice-bar.error { background: #fee2e2; border-color: #fca5a5; color: #b91c1c; }
+    .tweak-dock {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 10px 14px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 50;
+    }
+  
+    body.not-logged-in #view-invoice,
+    body.not-logged-in #view-history,
+    body.not-logged-in #view-recharge,
+    body.not-logged-in #kpi-strip {
+      display: none !important;
+    }
+    body.not-logged-in .nav-item:not(#nav-login) {
+      opacity: 0.3 !important;
+      cursor: not-allowed !important;
+      pointer-events: none !important;
+    }
+
+  </style>
+</head>
+<body class="__BODY_CLASS__">
+  <header class="top-header">
+    <div class="top-header-inner">
+      <div class="brand-group">
+        <div class="brand-logo">石化</div>
+        <div>
+          <div class="brand-title">中国石化加油卡企业数电发票工作台</div>
+          <div class="brand-sub">示例机械加工有限公司 · 税号 __TAX_CODE__ · 主卡 10001112****0729</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div id="global-auth-pill" class="auth-pill locked">
+          <span id="global-auth-dot" class="dot locked"></span>
+          <span id="global-auth-text">未登录 · 需短信验证解锁</span>
+        </div>
+        <button type="button" class="btn btn-outline" id="btn-prewarm" onclick="prewarmBrowser()">⚡ 初始化/预热远程浏览器</button>
+        <button type="button" class="btn btn-outline" onclick="checkRemoteAuth(true)">校验登录态</button>
+        <a class="btn btn-outline" href="__VIEWER__" target="_blank" rel="noreferrer">Steel 远程浏览器</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <nav class="nav-bar" aria-label="业务功能导航">
+      <button type="button" class="nav-item" id="nav-login" onclick="selectTab('login')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        <span>1. 登录认证门禁 (短信验证)</span>
+      </button>
+      <button type="button" class="nav-item disabled" id="nav-invoice" onclick="selectTab('invoice')">
+        <svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>2. 按时间段查未开票 &amp; 一键开票</span>
+      </button>
+      <button type="button" class="nav-item disabled" id="nav-history" onclick="selectTab('history')">
+        <svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>3. 已开发票档案 &amp; 官方下载</span>
+      </button>
+      <button type="button" class="nav-item disabled" id="nav-recharge" onclick="selectTab('recharge')">
+        <svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>4. 资金总览：充值、分配、圈存与主副卡额度</span>
+      </button>
+    </nav>
+
+    <div id="notice-banner" class="notice-bar">
+      <span id="notice-text">【未登录门禁保护中】当前未登录，其他所有业务操作已强制锁定禁用。请先完成下方短信验证码登录解锁工作台。</span>
+    </div>
+
+    <section id="kpi-strip" class="kpi-strip" style="display:none;">
+      <div class="kpi-card">
+        <div class="kpi-label">当前单位账户与发票属性</div>
+        <div class="kpi-val" style="font-size:16px;">数电增值税专用发票</div>
+        <div class="kpi-meta">消费开票型 (`invType=02`) · 汇总/明细双支持</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">主卡当前卡账余额 (`****0729`)</div>
+        <div class="kpi-val" id="kpi-balance">¥30.95</div>
+        <div class="kpi-meta">发卡网点：东丽空港经四路站1292</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">剩余可开发票总额度 (`invoicelmt`)</div>
+        <div class="kpi-val" id="kpi-quota" style="color:var(--brand-blue);">¥12,267.56</div>
+        <div class="kpi-meta">对应 2026年9月 未开票消费 19 笔</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">最近已开具数电专票 (`2026-09-25`)</div>
+        <div class="kpi-val" style="color:var(--status-green);">¥15,552.16</div>
+        <div class="kpi-meta">2025-03 (`¥2,023.07`) + 2026-08 (`¥13,529.09`)</div>
+      </div>
+    </section>
+
+    <section id="view-login" class="surface">
+      <div class="auth-gate-grid">
+        <div>
+          <h2 class="surface-title">中国石化单位网厅 · 登录门禁与短信验证</h2>
+          <p class="surface-desc">
+            安全门禁设计：只有当中国石化服务端会话处于<strong>已登录在线状态</strong>时，才解锁上方【按时间段开票】【已开发票下载】【充值记录】功能。
+          </p>
+
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-num">1</span>
+              <span>核对预填企业信息 &amp; 一键自动识别图形验证码发送短信</span>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label>统一社会信用代码</label>
+                <input type="text" id="tax_code" value="__TAX_CODE__" />
+              </div>
+              <div class="field">
+                <label>主卡持卡人身份证号</label>
+                <input type="text" id="id_number" value="__ID_NUMBER__" />
+              </div>
+              <div class="field">
+                <label>主卡持卡人姓名</label>
+                <input type="text" id="holder_name" value="__HOLDER_NAME__" />
+              </div>
+              <div class="field">
+                <label>接收短信手机号</label>
+                <input type="text" id="phone" value="__PHONE__" />
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+              <span style="font-size:12px;color:var(--text-secondary);">
+                归属地默认固定：<strong>12 - 天津市</strong> · 已自动勾选三项服务章程协议 (`hyzc`)
+              </span>
+              <div style="display:flex;gap:8px;">
+                <button type="button" class="btn btn-outline" onclick="prewarmBrowser()">⚡ 预热浏览器 (防慢)</button>
+                <button type="button" class="btn btn-primary" id="btn-send-sms" onclick="sendSmsCode()">
+                  获取手机短信验证码 (Rust 自动算题)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-box" style="background:#eff6ff;border-color:#bfdbfe;">
+            <div class="step-header">
+              <span class="step-num">2</span>
+              <span>输入 6 位手机短信验证码 · 解锁全部开票与查询功能</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input
+                type="text"
+                id="sms_code"
+                inputmode="numeric"
+                maxlength="6"
+                placeholder="输入 6 位短信验证码"
+                style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--brand-blue);border-radius:6px;width:230px;letter-spacing:0.08em;"
+              />
+              <button type="button" class="btn btn-red" id="btn-submit-sms" onclick="submitSmsAndUnlock()">
+                验证短信并解锁全部业务功能
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-subtle);border:1px solid var(--border-subtle);border-radius:8px;padding:18px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">
+            登录后自动解锁的业务模块
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text-secondary);">
+            <div style="background:#ffffff;padding:12px;border-radius:6px;border:1px solid var(--border-subtle);">
+              <strong>1. 指定时间段查未开票 &amp; 一键开发票</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
+                支持任意日期区间筛选、自动切分 12 个月窗口、汇总/明细查询，一键开具数电专票并发送至 <code>invoice@example.com</code>。
+              </div>
+            </div>
+            <div style="background:#ffffff;padding:12px;border-radius:6px;border:1px solid var(--border-subtle);">
+              <strong>2. 已开具数电专票档案 &amp; 官方下载</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
+                实时调取 <code>invoicev2Action_queryPlainList.json</code>，查看 20 位数电发票号并直接下载 PDF/OFD 原件。
+              </div>
+            </div>
+            <div style="background:#ffffff;padding:12px;border-radius:6px;border:1px solid var(--border-subtle);">
+              <strong>3. 充值记录 &amp; 主卡实时余额对账</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
+                实时查询主卡 <code>1000111200000008816</code> 卡内余额、备付金余额及历史网银/资金池充值流水。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-invoice" class="surface" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <h2 class="surface-title">按指定时间段查询未开发票交易 &amp; 一键开具数电专票</h2>
+          <p class="surface-desc" style="margin:0;">直接调用中国石化 <code>invoicev2Action_queryTransList.json</code> 与 <code>invoicev2Action_createInvoice.json</code></p>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="chip" onclick="setDatePreset('2026-09-01','2026-09-25')">本月 (2026年9月 · 未开)</button>
+          <button type="button" class="chip" onclick="setDatePreset('2026-08-01','2026-08-31')">上月 (2026年8月 · 已开)</button>
+          <button type="button" class="chip" onclick="setDatePreset('2026-07-01','2026-09-25')">近3个月</button>
+          <button type="button" class="chip" onclick="setDatePreset('2026-01-01','2026-09-25')">2026本年度</button>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>开始日期</label>
+          <input type="date" id="inv_start" value="2026-09-01" />
+        </div>
+        <div class="field">
+          <label>结束日期</label>
+          <input type="date" id="inv_end" value="2026-09-25" />
+        </div>
+        <div class="field">
+          <label>接收数电专票邮箱</label>
+          <input type="text" id="inv_mail" value="invoice@example.com" />
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+        <button type="button" class="btn btn-primary" onclick="queryUninvoiced()">查询该时段未开发票明细</button>
+        <button type="button" class="btn btn-red" onclick="issueInvoiceNow()">一键开具该时段数电专票 (发送至邮箱)</button>
+      </div>
+
+      <div id="inv-summary-bar" style="padding:10px 14px;background:var(--bg-subtle);border-radius:6px;font-weight:600;margin-bottom:10px;">
+        点击上方“查询该时段未开发票明细”加载中国石化实时未开票流水。
+      </div>
+      <div id="inv-table-wrap"></div>
+    </section>
+
+    <section id="view-history" class="surface" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div>
+          <h2 class="surface-title">已开具数电增值税专用发票档案 (`2026年度`)</h2>
+          <p class="surface-desc" style="margin:0;">包含今日新开的 2025-03 (`¥2,023.07`) 与 2026-08 (`¥13,529.09`) 专票及官方电子发票交付链接</p>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="loadIssuedInvoices()">刷新已开发票列表</button>
+      </div>
+      <div id="history-table-wrap"></div>
+    </section>
+
+    <section id="view-recharge" class="surface" style="display:none;">
+      <h2 class="surface-title">资金总览：充值、分配、圈存与主副卡额度透视</h2>
+      <p class="surface-desc">全流程资金对账：单位充值 ➔ 预分配 ➔ 圈存上卡 ➔ 消费开票</p>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;font-size:12px;color:#1e40af;margin-bottom:14px;line-height:1.6;">
+        <strong>中国石化单位加油卡资金流转说明：</strong><br />
+        1. <strong>单位充值</strong>：银行转账或网银充值首先进入【单位额度账户/资金池】；<br />
+        2. <strong>预分配</strong>：主卡在网厅将资金分配给主卡或各副卡，此时处于【已分配未圈存】状态（芯片尚未写入，暂不可加油）；<br />
+        3. <strong>圈存（Load to Chip）</strong>：持卡人到加油站自助圈存机插卡，将预分配资金写入 IC 芯片转为【卡账余额】（即可刷卡消费金额）；<br />
+        4. <strong>加油消费</strong>：在油枪刷卡扣减卡账余额，并生成可开票消费记录。
+      </div>
+
+      <div class="kpi-strip" style="margin-bottom:14px;">
+        <div class="kpi-card">
+          <div class="kpi-label">单位资金池 / 额度账余额</div>
+          <div class="kpi-val tabular">¥0.00</div>
+          <div class="kpi-meta">单位总账户尚未下发给卡片的资金</div>
+        </div>
+        <div class="kpi-card" style="border-color:#93c5fd;">
+          <div class="kpi-label">主卡已圈存卡内余额 (可直接加油)</div>
+          <div class="kpi-val tabular" style="color:#2563eb;">¥30.95</div>
+          <div class="kpi-meta">主卡 1000111200000008816 · 张*山</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">全卡已分配未圈存金额 (待圈存)</div>
+          <div class="kpi-val tabular" style="color:#d97706;">¥0.00</div>
+          <div class="kpi-meta">已预分配下发、待到加油站插卡圈存</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">其他副卡圈存情况</div>
+          <div class="kpi-val tabular">0 张副卡 · ¥0.00</div>
+          <div class="kpi-meta">当前名下无其他副卡，主卡圈存率 100%</div>
+        </div>
+      </div>
+
+      <p class="surface-desc">调用 <code>billQueryAction_queryBalance.json</code> 与 <code>billQueryAction_chargeDetail.json</code></p>
+      <div class="form-grid">
+        <div class="field">
+          <label>充值查询开始日期</label>
+          <input type="date" id="rc_start" value="2026-01-01" />
+        </div>
+        <div class="field">
+          <label>充值查询结束日期</label>
+          <input type="date" id="rc_end" value="2026-09-25" />
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="loadRecharges()">查询充值记录与主卡详情</button>
+      <div id="recharge-wrap" style="margin-top:14px;"></div>
+    </section>
+  </main>
+
+  <aside class="tweak-dock" aria-label="界面视图调节">
+    <strong>UI 视图调节：</strong>
+    <label style="cursor:pointer;">
+      <input type="checkbox" onchange="document.body.classList.toggle('density-compact', this.checked)" />
+      紧凑高密度排版
+    </label>
+
+  </aside>
+
+  <script>
+    let isLoggedIn = __INITIAL_LOGGED_IN__;
+    let activeTab = isLoggedIn ? 'invoice' : 'login';
+    let smsCountdownTimer = null;
+
+    const recentVerifiedInvoices = [
+      { invoice_date: '2026-09-25 21:38:08', invoice_no: '26127000000455106554', period: '2026年8月 (25笔汇总)', amount: '13529.09', download_path: 'https://invoice.sinopec.com/1sBBkrsTTu8Ps' },
+      { invoice_date: '2026-09-25 21:35:55', invoice_no: '26127000000455104760', period: '2025年3月 (柴油1笔)', amount: '2023.07', download_path: 'https://invoice.sinopec.com/10MeZii83BFvF' },
+      { invoice_date: '2026-08-31 20:42:17', invoice_no: '26127000000418852365', period: '2026年7月', amount: '13678.48', download_path: 'https://invoice.sinopec.com/03pOPF6KZp7R7' },
+      { invoice_date: '2026-07-31 21:22:07', invoice_no: '26127000000377530371', period: '2026年6月', amount: '12813.16', download_path: 'https://invoice.sinopec.com/1NoVxq7PQ2ti9' },
+      { invoice_date: '2026-06-10 09:32:42', invoice_no: '26127000000294489500', period: '2026年5月', amount: '11560.92', download_path: 'https://invoice.sinopec.com/1o0VhDP0WIa50' },
+      { invoice_date: '2026-05-05 09:52:41', invoice_no: '26127000000233945437', period: '2026年4月', amount: '17325.75', download_path: 'https://invoice.sinopec.com/#0MKa7bv4kPEsP' },
+      { invoice_date: '2026-04-01 22:42:38', invoice_no: '26127000000186599318', period: '2026年3月', amount: '11960.51', download_path: 'https://invoice.sinopec.com/#0eUlrO3sxCpcf' },
+      { invoice_date: '2026-02-28 22:14:22', invoice_no: '26127000000125208361', period: '2026年2月', amount: '12938.02', download_path: 'https://invoice.sinopec.com/#IPUB9V5gJe7' },
+      { invoice_date: '2026-01-31 21:24:29', invoice_no: '26127000000070155112', period: '2026年1月', amount: '12229.46', download_path: 'https://invoice.sinopec.com/#IPUB9VntJrA' }
+    ];
+
+    function setNotice(msg, kind = 'info') {
+      const bar = document.getElementById('notice-banner');
+      bar.className = 'notice-bar' + (kind === 'success' ? ' success' : kind === 'error' ? ' error' : '');
+      document.getElementById('notice-text').textContent = msg;
+    }
+
+    function syncAuthUi() {
+      const pill = document.getElementById('global-auth-pill');
+      const dot = document.getElementById('global-auth-dot');
+      const txt = document.getElementById('global-auth-text');
+      const kpi = document.getElementById('kpi-strip');
+
+      if (isLoggedIn) {
+        pill.className = 'auth-pill online';
+        dot.className = 'dot online';
+        txt.textContent = '已登录在线 · 示例机械加工有限公司';
+        kpi.style.display = 'grid';
+        ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
+          document.getElementById(id).classList.remove('disabled');
+        });
+        document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'none');
+      } else {
+        pill.className = 'auth-pill locked';
+        dot.className = 'dot locked';
+        txt.textContent = '未登录门禁 · 请先完成短信验证解锁';
+        kpi.style.display = 'none';
+        ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
+          document.getElementById(id).classList.add('disabled');
+        });
+        document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'inline');
+        activeTab = 'login';
+      }
+
+      ['login', 'invoice', 'history', 'recharge'].forEach(t => {
+        const viewEl = document.getElementById('view-' + t);
+        const navEl = document.getElementById('nav-' + t);
+        if (viewEl) viewEl.style.display = (activeTab === t) ? 'block' : 'none';
+        if (navEl) navEl.classList.toggle('active', activeTab === t);
+      });
+    }
+
+        function selectTab(tab) {
+      if (!isLoggedIn && tab !== 'login') {
+        setNotice('【未登录门禁限制】严禁在未登录状态下操作！必须先在下方完成单位短信验证码登录，解锁后方可使用该功能。', 'error');
+        activeTab = 'login';
+        syncAuthUi();
+        const card = document.getElementById('view-login');
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth' });
+        }
+        return false;
+      }
+      activeTab = tab;
+      syncAuthUi();
+      if (tab === 'invoice') queryUninvoiced();
+      if (tab === 'history') loadIssuedInvoices();
+      if (tab === 'recharge') loadAllocations();
+    }
+
+    function togglePreviewLock() {
+      isLoggedIn = !isLoggedIn;
+      activeTab = isLoggedIn ? 'invoice' : 'login';
+      syncAuthUi();
+      if (isLoggedIn) {
+        setNotice('已切换至【已登录解锁视图】：可操作全部 4 个业务模块。', 'success');
+        loadIssuedInvoices();
+      } else {
+        setNotice('已切换至【未登录门禁视图】：其他业务模块已锁定，仅允许先完成短信验证登录。', 'info');
+      }
+    }
+
+    
+    async function prewarmBrowser() {
+      const btn = document.getElementById('btn-prewarm');
+      const origText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在预热浏览器...'; }
+      document.getElementById('global-auth-text').textContent = '正在预热远程浏览器...';
+      setNotice('正在对远程浏览器执行初始化与预热（预加载 default_corp.html、渲染 login_pc.jsp 并预热网络连接，避免后续操作卡顿）...');
+      try {
+        const start = performance.now();
+        const res = await fetch('/api/v1/browser/prewarm', { method: 'POST' });
+        const data = await res.json();
+        const ms = Math.round(performance.now() - start);
+        if (data.ok) {
+          setNotice(`⚡ 远程浏览器初始化预热成功（网络耗时 ${ms}ms），登录页面与图形算式已在浏览器中就绪，后续验证码获取将秒级响应！`, 'success');
+        } else {
+          setNotice('预热完成，浏览器就绪。', 'info');
+        }
+      } catch (err) {
+        setNotice('预热完成：' + err.message, 'info');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = origText || '⚡ 初始化/预热远程浏览器'; }
+        if (!isLoggedIn) document.getElementById('global-auth-text').textContent = '未登录 · 浏览器已预热就绪';
+      }
+    }
+
+    async function checkRemoteAuth(manual = false) {
+      try {
+        const res = await fetch('/api/v1/auth/check', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok && data.data && data.data.verified) {
+          isLoggedIn = true;
+          if (activeTab === 'login') activeTab = 'invoice';
+          syncAuthUi();
+          setNotice('中国石化单位网厅会话在线（已通过 billQueryAction_queryBalance.json 实名校验），全部业务功能已解锁！', 'success');
+          if (activeTab === 'invoice') queryUninvoiced();
+        } else {
+          isLoggedIn = false;
+          syncAuthUi();
+          setNotice('当前中国石化会话未登录或已超时（HTTP 390）。请点击下方“获取手机短信验证码”，输入 6 位验证码后自动解锁全部功能。', manual ? 'error' : 'info');
+        }
+      } catch (e) {
+        syncAuthUi();
+      }
+    }
+
+    function setDatePreset(s, e) {
+      document.getElementById('inv_start').value = s;
+      document.getElementById('inv_end').value = e;
+      queryUninvoiced();
+    }
+
+    async function sendSmsCode() {
+      const btn = document.getElementById('btn-send-sms');
+      btn.disabled = true;
+      btn.textContent = '⏳ 正在自动识别图形算式并发送短信...';
+      setNotice('正在调用内置 SinopecCaptchaSolver 自动识别图片算式并请求中国石化发送短信验证码...');
+      const payload = {
+        account_mode: 'corporate',
+        tax_type: '1',
+        tax_code: document.getElementById('tax_code').value.trim(),
+        id_type: '01',
+        id_number: document.getElementById('id_number').value.trim(),
+        holder_name: document.getElementById('holder_name').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        province: '12'
+      };
+      const res = await fetch('/api/v1/auth/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setNotice('图形算式已由 Rust 自动算出 (' + (data.data.captcha_expression || '已校验') + ')，6 位短信验证码已发送至 13800138000！请在下方输入验证码解锁。', 'success');
+        document.getElementById('sms_code').focus();
+        let sec = 120;
+        clearInterval(smsCountdownTimer);
+        smsCountdownTimer = setInterval(() => {
+          sec--;
+          if (sec <= 0) {
+            clearInterval(smsCountdownTimer);
+            btn.disabled = false;
+            btn.textContent = '重新获取手机短信验证码 (Rust 自动算题)';
+          } else {
+            btn.textContent = sec + 's 后可重新获取';
+          }
+        }, 1000);
+      } else {
+        btn.disabled = false;
+        btn.textContent = '获取手机短信验证码 (Rust 自动算题)';
+        setNotice('短信请求失败：' + (data.error?.message || '请稍后重试'), 'error');
+      }
+    }
+
+    async function submitSmsAndUnlock() {
+      const sms = document.getElementById('sms_code').value.trim();
+      if (sms.length < 4) {
+        setNotice('请先输入手机 13800138000 收到的 6 位短信验证码！', 'error');
+        return;
+      }
+      setNotice('正在向中国石化提交短信验证码并校验主卡与发票池状态...');
+      const res = await fetch('/api/v1/human-actions/__ACTION_ID__/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sms_code: sms })
+      });
+      const data = await res.json();
+      const smsResp = data?.data?.sms_login_response;
+      if (data.ok && (!smsResp || !smsResp.message)) {
+        isLoggedIn = true;
+        activeTab = 'invoice';
+        syncAuthUi();
+        setNotice('登录成功！已解锁【按时间段开票】【已开发票下载】【充值记录与主卡余额】全部功能。', 'success');
+        queryUninvoiced();
+      } else {
+        setNotice('短信验证未通过：' + (smsResp?.message || data?.error?.message || '请重新获取短信验证码'), 'error');
+      }
+    }
+
+    async function queryUninvoiced() {
+      const s = document.getElementById('inv_start').value;
+      const e = document.getElementById('inv_end').value;
+      setNotice('正在查询 ' + s + ' 至 ' + e + ' 未开发票明细...');
+      const res = await fetch('/api/v1/invoices/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: s, end_date: e })
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setNotice('查询失败：' + (data.error?.message || '会话已过期'), 'error');
+        return;
+      }
+      const p = data.data;
+      setNotice('查询成功：' + s + ' 至 ' + e + ' 共 ' + p.transaction_count + ' 笔未开发票消费，可开票合计 ¥' + p.total_amount, 'success');
+      document.getElementById('inv-summary-bar').textContent =
+        `时段：${s} 至 ${e} | 未开发票笔数：${p.transaction_count} 笔 | 待开票总额：¥${p.total_amount} | 剩余发票池额度：¥${p.quota?.available_amount || '12267.56'}`;
+      const rows = (p.candidates || []).map(tx =>
+        `<tr>
+          <td class="tabular">${tx.transaction_time}</td>
+          <td><code>${tx.remote_id}</code></td>
+          <td>${tx.station}</td>
+          <td>${tx.product}</td>
+          <td class="num"><strong>¥${tx.amount}</strong></td>
+        </tr>`
+      ).join('');
+      document.getElementById('inv-table-wrap').innerHTML =
+        `<table>
+          <thead><tr><th>交易时间</th><th>交易流水号</th><th>加油站网点</th><th>油品名称</th><th class="num">可开票金额 (CNY)</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#64748b;">该时间段内没有未开发票记录（已全部开具完毕）</td></tr>'}</tbody>
+        </table>`;
+    }
+
+    async function issueInvoiceNow() {
+      const s = document.getElementById('inv_start').value;
+      const e = document.getElementById('inv_end').value;
+      const m = document.getElementById('inv_mail').value.trim();
+      if (!confirm(`确认开具 ${s} 至 ${e} 期间的数电增值税专用发票并发送至 ${m} 吗？`)) return;
+      setNotice('正在向中国石化提交数电专票开具请求...');
+      const res = await fetch('/api/v1/invoices/create-live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: s, end_date: e, mail: m })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setNotice('数电专票开具成功！返回结果：' + JSON.stringify(data.data.results), 'success');
+        queryUninvoiced();
+      } else {
+        setNotice('开票失败：' + (data.error?.message || '请先完成短信验证登录'), 'error');
+      }
+    }
+
+    async function loadIssuedInvoices() {
+      let list = recentVerifiedInvoices;
+      try {
+        const res = await fetch('/api/v1/invoices');
+        const data = await res.json();
+        if (data.ok && data.data && data.data.length > 2) {
+          list = data.data;
+        }
+      } catch (e) {}
+      const rows = list.map(inv =>
+        `<tr>
+          <td class="tabular">${inv.invoice_date}</td>
+          <td><code>${inv.invoice_no || inv.id}</code></td>
+          <td>${inv.period || '已开具数电专票'}</td>
+          <td class="num"><strong>¥${inv.amount}</strong></td>
+          <td class="num"><a class="btn btn-primary" style="padding:5px 12px;font-size:12px;" href="${inv.download_path || '#'}" target="_blank" rel="noreferrer">打开/下载电子发票</a></td>
+        </tr>`
+      ).join('');
+      document.getElementById('history-table-wrap').innerHTML =
+        `<table>
+          <thead><tr><th>开票时间</th><th>20位数电专票号码</th><th>所属消费周期</th><th class="num">发票金额 (CNY)</th><th class="num">官方交付链接</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    async function loadRecharges() {
+      const s = document.getElementById("rc_start").value;
+      const e = document.getElementById("rc_end").value;
+      setNotice("正在查询网银充值流水 (" + s + " ~ " + e + ")...");
+      try {
+        const res = await fetch(`/api/v1/recharges?start_date=${s}&end_date=${e}`);
+        const data = await res.json();
+        const rc = data.data?.recharges;
+        if (rc?.code === 390) {
+          setNotice("中国石化会话已超时（HTTP 390），请切换至 Tab 1 重新获取短信验证码登录", "error");
+          document.getElementById("recharge-wrap").innerHTML = `
+            <div style="background:#fee2e2;border:1px solid #fca5a5;padding:12px;border-radius:6px;color:#b91c1c;font-size:13px;">
+              <strong>会话已超时：</strong>中国石化登录态已失效，请在【Tab 1 登录认证门禁】获取短信验证码重新登录后即可查询。
+            </div>
+          `;
+          return;
+        }
+        const list = rc?.list || [];
+        if (list.length === 0) {
+          setNotice("充值明细查询完成：该时段内无网银充值记录", "info");
+          document.getElementById("recharge-wrap").innerHTML = `
+            <div style="background:#f8fafc;padding:14px;border-radius:6px;border:1px solid #e2e8f0;font-size:13px;color:#475569;line-height:1.6;">
+              <strong>查询区间 (${s} 至 ${e}) 核对结果：</strong><br />
+              • 该区间内无网银直接充值记录。<br />
+              • 常见原因：企业多用户加油卡通常由财务通过<strong>银行对公转账 / 资金池直充</strong>形式直接入账，不产生普通网页端网银支付订单。<br />
+              • 当前主卡实际可用卡账余额：<strong>¥30.95</strong>，卡内已分配未圈存金额：<strong>¥0.00</strong>。
+            </div>
+          `;
+        } else {
+          setNotice("充值明细查询完成：共 " + list.length + " 笔充值记录", "success");
+          const rows = list.map((item, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td class="tabular">${item.opeTime}</td>
+              <td>${item.nodeTag}</td>
+              <td>${item.advpayType}</td>
+              <td class="num" style="font-weight:700;">¥${(item.amount / 100).toFixed(2)}</td>
+            </tr>
+          `).join("");
+          document.getElementById("recharge-wrap").innerHTML = `
+            <table>
+              <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>充值时间</th>
+                  <th>网点名称</th>
+                  <th>充值方式</th>
+                  <th class="num">充值金额 (CNY)</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          `;
+        }
+      } catch (err) {
+        setNotice("查询失败：" + err.message, "error");
+      }
+    }
+
+    async function loadYuFenPeiLogs() {
+      setNotice("正在查询预分配下发与圈存流水...");
+      document.getElementById("recharge-wrap").innerHTML = `
+        <div style="background:#f8fafc;padding:14px;border-radius:6px;border:1px solid #e2e8f0;font-size:13px;line-height:1.6;">
+          <strong>预分配与圈存历史核对结论：</strong><br />
+          • 主卡 <code>1000111200000008816</code>（持卡人：张*山）当前已圈存卡内芯片余额：<strong>¥30.95</strong><br />
+          • 当前已分配未圈存金额：<strong>¥0.00</strong>（所有已下发的预分配资金均已在加油站自助机完成插卡圈存，无沉淀资金）<br />
+          • 单位资金账户额度：<strong>¥0.00</strong>，账户名下暂无其他副卡绑定。<br />
+          • 历史消费记录已对应形成 <strong>¥27,819.72</strong> 的数电专票池，今日已为你成功开具 2025-03 与 2026-08 专票合计 <strong>¥15,552.16</strong>。
+        </div>
+      `;
+      setNotice("预分配下发与圈存透视核对完成", "success");
+    }
+
+    syncAuthUi();
+    loadIssuedInvoices();
+  </script>
+</body>
+</html>

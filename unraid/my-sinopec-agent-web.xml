@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>sinopec-agent-web</Name>
+  <Repository>ghcr.io/ashanzzz/sinopec-agent-web:latest</Repository>
+  <Registry>https://ghcr.io/ashanzzz/sinopec-agent-web</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Overview>Optional React Web Console for Sinopec Agent (Settings, Research, Preview, Human Actions)</Overview>
+  <Category>Productivity: Tools: Network:Web</Category>
+  <WebUI>http://[IP]:[PORT:8789]/</WebUI>
+  <Config Name="Web UI Port" Target="80" Default="8789" Mode="tcp" Description="Nginx static frontend port" Type="Port" Display="always" Required="true" Mask="false">8789</Config>
+</Container>

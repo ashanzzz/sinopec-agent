@@ -1,0 +1,26 @@
+{
+  "invoices": [
+    {
+      "id": "inv_202608_001",
+      "invoice_no": "26122000000048291021",
+      "invoice_date": "2026-08-31",
+      "invoice_type": "增值税专用发票",
+      "buyer_name": "示例机械加工有限公司",
+      "amount_fen": 182000,
+      "status": "ISSUED",
+      "file_format": "PDF",
+      "file_status": "READY"
+    },
+    {
+      "id": "inv_202607_002",
+      "invoice_no": "26122000000039104412",
+      "invoice_date": "2026-07-31",
+      "invoice_type": "增值税专用发票",
+      "buyer_name": "示例机械加工有限公司",
+      "amount_fen": 146500,
+      "status": "ISSUED",
+      "file_format": "PDF",
+      "file_status": "READY"
+    }
+  ]
+}

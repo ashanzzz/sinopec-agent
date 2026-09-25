@@ -1,0 +1,26 @@
+{
+  "cardMember": {
+    "cardNo": "1000111200000008816",
+    "cardAlias": "单位主卡"
+  },
+  "cardInfo": {
+    "cardNo": "1000111200000008816",
+    "priCard": "1",
+    "cardHolder": "张*山",
+    "startDate": "2023-05-12",
+    "compName": "示例机械加工有限公司",
+    "compNo": "1200098816",
+    "tax": "91120116**********",
+    "cardStatus": "正常",
+    "invoiceType": "2",
+    "compType": "02",
+    "preBalance": "358000",
+    "balance": "358000",
+    "cardBalance": "126550",
+    "cardIntegral": "0",
+    "integral": "0",
+    "lev": "1"
+  },
+  "dayNum": 1232,
+  "source": 3
+}

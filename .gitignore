@@ -1,0 +1,11 @@
+/target/
+/data/
+/.cargo/
+/web/node_modules/
+/web/dist/
+.env
+*.db
+*.db-shm
+*.db-wal
+*.py
+*.mjs

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>sinopec-agent</Name>
+  <Repository>ghcr.io/ashanzzz/sinopec-agent:latest</Repository>
+  <Registry>https://ghcr.io/ashanzzz/sinopec-agent</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Overview>Sinopec Fuel Card Invoice Automation &amp; AI Research Server (Rust + SQLite + MCP + Steel CDP)</Overview>
+  <Category>Productivity: Tools: Network:Web</Category>
+  <WebUI>http://[IP]:[PORT:8788]/api/v1/health</WebUI>
+  <Config Name="REST and MCP Port" Target="8788" Default="8788" Mode="tcp" Description="HTTP REST (/api/v1), MCP (/mcp), and Human Action UI (/human/{token})" Type="Port" Display="always" Required="true" Mask="false">8788</Config>
+  <Config Name="Appdata Directory" Target="/data" Default="/mnt/user/appdata/sinopec-agent" Mode="rw" Description="SQLite sinopec.db, secrets, auth cookies, downloads, and redacted research data" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/sinopec-agent</Config>
+  <Config Name="SINOPEC_PUBLIC_URL" Target="SINOPEC_PUBLIC_URL" Default="http://192.168.8.11:8788" Mode="" Description="Public URL used in Human Action links" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.8.11:8788</Config>
+  <Config Name="STEEL_BASE_URL" Target="STEEL_BASE_URL" Default="http://192.168.8.11:13000" Mode="" Description="Existing Unraid Steel Browser API URL" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.8.11:13000</Config>
+  <Config Name="STEEL_CDP_URL" Target="STEEL_CDP_URL" Default="ws://192.168.8.11:19223" Mode="" Description="Existing Unraid Steel Browser CDP WebSocket URL" Type="Variable" Display="always" Required="true" Mask="false">ws://192.168.8.11:19223</Config>
+  <Config Name="SCRAPLING_BASE_URL" Target="SCRAPLING_BASE_URL" Default="http://192.168.8.11:8111" Mode="" Description="Optional Scrapling Research Assistant URL" Type="Variable" Display="always" Required="false" Mask="false">http://192.168.8.11:8111</Config>
+  <Config Name="SINOPEC_RESEARCH_MODE" Target="SINOPEC_RESEARCH_MODE" Default="false" Mode="" Description="Enable Research Mode &amp; Research MCP tools" Type="Variable" Display="always" Required="false" Mask="false">false</Config>
+  <Config Name="SINOPEC_ALLOW_AUTO_SUBMIT" Target="SINOPEC_ALLOW_AUTO_SUBMIT" Default="false" Mode="" Description="Allow automatic invoice submission without manual confirmation" Type="Variable" Display="always" Required="false" Mask="false">false</Config>
+</Container>

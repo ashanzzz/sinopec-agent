@@ -1,0 +1,10 @@
+/target/
+/data/
+/.cargo/
+/web/node_modules/
+/web/dist/
+.git/
+.env
+*.db
+*.py
+*.mjs

@@ -1,0 +1,15 @@
+{
+  "account_mode": "corporate",
+  "card_type": "entity_card",
+  "invoice_attribute": "special_vat",
+  "supports_online_invoice": true,
+  "supports_normal_invoice": true,
+  "supports_special_invoice": true,
+  "supports_invoice_reservation": true,
+  "supports_invoice_download": true,
+  "supports_quota_query": true,
+  "invoice_title_locked": true,
+  "requires_consumption_record": true,
+  "requires_recharge_record": false,
+  "max_query_window_days": 31
+}

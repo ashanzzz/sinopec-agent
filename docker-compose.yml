@@ -1,0 +1,41 @@
+services:
+  sinopec-server:
+    image: ghcr.io/ashanzzz/sinopec-agent:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    container_name: sinopec-agent
+    restart: unless-stopped
+    ports:
+      - "8788:8788"
+    environment:
+      - SINOPEC_BIND=0.0.0.0:8788
+      - SINOPEC_PUBLIC_URL=http://192.168.8.11:8788
+      - SINOPEC_DATA_DIR=/data
+      - SINOPEC_API_TOKEN=${SINOPEC_API_TOKEN:-}
+      - SINOPEC_AUTH_MODE=${SINOPEC_AUTH_MODE:-hybrid}
+      - SINOPEC_AUTO_LOGIN=${SINOPEC_AUTO_LOGIN:-true}
+      - SINOPEC_MAX_AUTH_ATTEMPTS=${SINOPEC_MAX_AUTH_ATTEMPTS:-3}
+      - SINOPEC_RESEARCH_MODE=${SINOPEC_RESEARCH_MODE:-false}
+      - SINOPEC_DEMO_MODE=${SINOPEC_DEMO_MODE:-false}
+      - SINOPEC_ALLOW_AUTO_SUBMIT=${SINOPEC_ALLOW_AUTO_SUBMIT:-false}
+      - STEEL_BASE_URL=${STEEL_BASE_URL:-http://192.168.8.11:13000}
+      - STEEL_CDP_URL=${STEEL_CDP_URL:-ws://192.168.8.11:19223}
+      - SCRAPLING_BASE_URL=${SCRAPLING_BASE_URL:-http://192.168.8.11:8111}
+      - RUST_LOG=${RUST_LOG:-info}
+    volumes:
+      - /mnt/user/appdata/sinopec-agent:/data
+
+  sinopec-web:
+    image: ghcr.io/ashanzzz/sinopec-agent-web:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: sinopec-agent-web
+    restart: unless-stopped
+    profiles:
+      - ui
+    ports:
+      - "8789:80"
+    depends_on:
+      - sinopec-server
