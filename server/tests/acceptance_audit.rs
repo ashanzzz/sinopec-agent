@@ -80,12 +80,12 @@ async fn test_full_system_acceptance_audit_26_points() {
     // Criteria 6: Redactor sensitive data protection (Card 19-digits -> ****8816, Phone, Tax/ID, Secrets)
     assert_eq!(
         Redactor::mask_card_number("1000111200000008816"),
-        "****0729"
+        "****8816"
     );
-    assert_eq!(Redactor::mask_phone("13800138000"), "136****4317");
+    assert_eq!(Redactor::mask_phone("13800138000"), "138****8000");
     assert_eq!(
         Redactor::mask_id_or_tax("91120116MA06ABCDEF"),
-        "911***********GT20"
+        "911***********CDEF"
     );
     let secret_json = json!({
         "password": "secret_password",
@@ -95,7 +95,7 @@ async fn test_full_system_acceptance_audit_26_points() {
     let redacted = Redactor::redact_json(&secret_json);
     assert_eq!(redacted["password"], "<REDACTED>");
     assert_eq!(redacted["smsYzm"], "<REDACTED>");
-    assert_eq!(redacted["cardNo"], "****0729");
+    assert_eq!(redacted["cardNo"], "****8816");
     println!(" [PASS] Criteria 6: Redactor masks fuel cards, phones, IDs, and passwords.");
 
     // Criteria 7: CredentialProvider write-only security (Settings GET never leaks password)
@@ -205,7 +205,7 @@ async fn test_full_system_acceptance_audit_26_points() {
             account_mode: AccountMode::Corporate,
             member_account: Some("示例机械加工有限公司".to_string()),
             card_count: 1,
-            master_card_masked: Some("****0729".to_string()),
+            master_card_masked: Some("****8816".to_string()),
             company_name: Some("示例机械加工有限公司".to_string()),
             reason: "Audit test verification".to_string(),
         })
@@ -323,3 +323,4 @@ async fn test_full_system_acceptance_audit_26_points() {
     println!(">>> ALL ACCEPTANCE AUDIT TESTS PASSED SUCCESSFULLY! <<<");
     println!("========================================================\n");
 }
+  
