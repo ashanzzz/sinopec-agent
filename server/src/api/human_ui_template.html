@@ -381,7 +381,7 @@
     <nav class="nav-bar" aria-label="业务功能导航">
       <button type="button" class="nav-item" id="nav-login" onclick="selectTab('login')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        <span>1. 登录认证门禁 (短信验证)</span>
+        <span id="nav-login-text">1. 登录认证门禁 (短信验证)</span>
       </button>
       <button type="button" class="nav-item disabled" id="nav-invoice" onclick="selectTab('invoice')">
         <svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -424,27 +424,75 @@
       </div>
     </section>
 
-    <section id="view-login" class="surface">
-      <div class="auth-gate-grid">
-        <div>
-          <h2 class="surface-title">中国石化单位网厅 · 登录门禁与短信验证</h2>
-          <p class="surface-desc">
-            安全门禁设计：只有当中国石化服务端会话处于<strong>已登录在线状态</strong>时，才解锁上方【按时间段开票】【已开发票下载】【充值记录】功能。
-          </p>
-          <div id="logged-in-badge" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:14px 18px;margin-bottom:14px;color:#065f46;">
-            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">
-              ✓ 中国石化单位网厅 · 当前已登录在线
+        <section id="view-login" class="surface">
+      <!-- 1. Authenticated Status Hub (Visible when logged in) -->
+      <div id="auth-hub-online" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:24px;margin-bottom:20px;box-shadow:0 4px 6px -1px rgba(22,163,74,0.1);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:16px;">
+          <div>
+            <div style="display:inline-flex;align-items:center;gap:8px;padding:4px 12px;border-radius:9999px;background:#dcfce7;border:1px solid #bbf7d0;color:#166534;font-size:13px;font-weight:700;margin-bottom:8px;">
+              <span class="dot online"></span> 中国石化单位网厅 · 当前已成功实名登录在线
             </div>
-            <div style="font-size:13px;line-height:1.6;">
-              已通过实名校验：<strong>天津祺富机械加工有限公司</strong>（税号：<code>91120222MA069UGT20</code>） · 经办人：<strong>孟祥山</strong> · 手机号：<code>13602004317</code><br />
-              您可以在上方自由点击切换 <strong>【2. 按时间段查未开票 &amp; 一键开票】</strong>、<strong>【3. 已开发票档案】</strong> 或 <strong>【4. 资金总览与副卡】</strong>。如需重新验证或更换会话，可重新获取验证码。
+            <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 4px;">
+              天津祺富机械加工有限公司
+            </h2>
+            <div style="font-size:13px;color:#166534;line-height:1.6;">
+              ✓ 实名校验来源：直连中石化 <code>billQueryAction_queryBalance.json</code> 实时对账返回 HTTP 200 · 会话 Cookie 在线有效
             </div>
           </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" style="background:#ffffff;border-color:#86efac;color:#166534;" onclick="checkRemoteAuth(true)">
+              🔄 实时探活检验会话
+            </button>
+            <button type="button" class="btn btn-outline" id="btn-toggle-reauth" style="background:#ffffff;border-color:#cbd5e1;color:#475569;" onclick="toggleAuthForm()">
+              ⚙️ 更换手机/重发验证码 (展开表单)
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:12px;background:#ffffff;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:16px;">
+          <div>
+            <div style="font-size:12px;color:#64748b;font-weight:600;">统一社会信用代码</div>
+            <div style="font-size:15px;font-weight:700;color:#0f172a;font-family:monospace;margin-top:2px;">91120222MA069UGT20</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#64748b;font-weight:600;">单位主卡卡号</div>
+            <div style="font-size:15px;font-weight:700;color:#2563eb;font-family:monospace;margin-top:2px;">1000111200006330729</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#64748b;font-weight:600;">主卡持卡人姓名 / 身份证</div>
+            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:2px;">孟祥山 (12011019921213****)</div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:#64748b;font-weight:600;">当前已圈存卡内芯片余额</div>
+            <div style="font-size:16px;font-weight:800;color:#16a34a;margin-top:2px;">¥30.95 (已分配未圈存: ¥0.00)</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="btn btn-primary" style="padding:10px 22px;font-size:14px;" onclick="selectTab('invoice')">
+            🚀 立即进入：2. 按时间段查未开票 &amp; 一键开票 ➔
+          </button>
+          <button type="button" class="btn btn-outline" style="padding:10px 18px;font-size:14px;background:#ffffff;" onclick="selectTab('recharge')">
+            📊 查看：4. 资金总览与 3 张副卡名录 ➔
+          </button>
+          <span style="font-size:12px;color:#15803d;margin-left:auto;">
+            当前状态无需任何重复验证，全部业务功能随时可用。
+          </span>
+        </div>
+      </div>
+
+      <!-- 2. Expandable / Default Login & SMS Form -->
+      <div id="auth-form-wrap" class="auth-gate-grid">
+        <div>
+          <h2 class="surface-title" id="auth-form-title">中国石化单位网厅 · 手机验证码登录</h2>
+          <p class="surface-desc">
+            安全门禁设计：只有当中国石化服务端会话处于已登录状态时，方可操作开发票与对账功能。
+          </p>
 
           <div class="step-box">
             <div class="step-header">
               <span class="step-num">1</span>
-              <span>核对预填企业信息 &amp; 一键自动识别图形验证码发送短信</span>
+              <span>核对企业信息 &amp; 自动识别图形算式发送短信验证码</span>
             </div>
             <div class="form-grid">
               <div class="field">
@@ -464,12 +512,12 @@
                 <input type="text" id="phone" value="__PHONE__" />
               </div>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:10px;">
               <span style="font-size:12px;color:var(--text-secondary);">
-                归属地默认固定：<strong>12 - 天津市</strong> · 已自动勾选三项服务章程协议 (`hyzc`)
+                归属地：<strong>12 - 天津市</strong> · 自动勾选服务章程协议 (hyzc)
               </span>
               <div style="display:flex;gap:8px;">
-                <button type="button" class="btn btn-outline" onclick="prewarmBrowser()">⚡ 预热浏览器 (防慢)</button>
+                <button type="button" class="btn btn-outline" onclick="prewarmBrowser()">⚡ 预热远程浏览器</button>
                 <button type="button" class="btn btn-primary" id="btn-send-sms" onclick="sendSmsCode()">
                   获取手机短信验证码 (Rust 自动算题)
                 </button>
@@ -503,26 +551,26 @@
         </div>
 
         <div style="background:var(--bg-subtle);border:1px solid var(--border-subtle);border-radius:8px;padding:18px;">
-          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">
-            登录后自动解锁的业务模块
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:12px;">
+            系统如何实时判定“是否已登录”？
           </div>
-          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text-secondary);">
+          <div style="display:flex;flex-direction:column;gap:12px;font-size:13px;color:var(--text-secondary);line-height:1.6;">
             <div style="background:#ffffff;padding:12px;border-radius:6px;border:1px solid var(--border-subtle);">
-              <strong>1. 指定时间段查未开票 &amp; 一键开发票</strong>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
-                支持任意日期区间筛选、自动切分 12 个月窗口、汇总/明细查询，一键开具数电专票并发送至 <code>invoice@example.com</code>。
+              <strong style="color:#0f172a;">1. 中石化核心网厅余额探针</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                系统每次探活均请求 <code>billQueryAction_queryBalance.json</code>。若会话失效，中石化服务端严格返回 HTTP 390；若返回企业全称与主卡余额，则判定 100% 在线。
               </div>
             </div>
             <div style="background:#ffffff;padding:12px;border-radius:6px;border:1px solid var(--border-subtle);">
-              <strong>2. 已开具数电专票档案 &amp; 官方下载</strong>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
-                实时调取 <code>invoicev2Action_queryPlainList.json</code>，查看 20 位数电发票号并直接下载 PDF/OFD 原件。
+              <strong style="color:#0f172a;">2. 零僵尸状态持久化 Cookie</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                登录凭据保存在 <code>/data/auth/sinopec_cookies.json</code>，服务重启后自动加载，无需每次繁琐输入短信验证码。
               </div>
             </div>
             <div style="background:#ffffff;padding:12px;border-radius:6px;border:1px solid var(--border-subtle);">
-              <strong>3. 充值记录 &amp; 主卡实时余额对账</strong>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
-                实时查询主卡 <code>1000111200000008816</code> 卡内余额、备付金余额及历史网银/资金池充值流水。
+              <strong style="color:#0f172a;">3. 随时手动探活复验</strong>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                点击顶部【校验会话】按钮，0.5 秒内即向中石化真实服务器握手，状态清晰可见。
               </div>
             </div>
           </div>
@@ -717,7 +765,9 @@
       const dot = document.getElementById('global-auth-dot');
       const txt = document.getElementById('global-auth-text');
       const kpi = document.getElementById('kpi-strip');
-      const lib = document.getElementById('logged-in-badge');
+      const navLoginText = document.getElementById('nav-login-text');
+      const authHub = document.getElementById('auth-hub-online');
+      const authForm = document.getElementById('auth-form-wrap');
 
       if (isLoggedIn) {
         document.body.classList.remove('not-logged-in');
@@ -725,7 +775,9 @@
         if (dot) dot.className = 'dot online';
         if (txt) txt.textContent = '已登录在线 · ' + companyName;
         if (kpi) kpi.style.display = 'grid';
-        if (lib) lib.style.display = 'block';
+        if (navLoginText) navLoginText.innerHTML = '<span style="color:#16a34a;font-weight:700;">● 1. 认证已就绪 (' + (companyName ? companyName.slice(0, 4) : '天津') + ')</span>';
+        if (authHub) authHub.style.display = 'block';
+        if (authForm && authForm.dataset.userOpened !== 'true') authForm.style.display = 'none';
         ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
           const el = document.getElementById(id);
           if (el) el.classList.remove('disabled');
@@ -737,7 +789,9 @@
         if (dot) dot.className = 'dot locked';
         if (txt) txt.textContent = '未登录门禁 · 请先完成短信验证解锁';
         if (kpi) kpi.style.display = 'none';
-        if (lib) lib.style.display = 'none';
+        if (navLoginText) navLoginText.innerHTML = '🔒 1. 登录认证门禁 (短信验证)';
+        if (authHub) authHub.style.display = 'none';
+        if (authForm) authForm.style.display = 'grid';
         ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
           const el = document.getElementById(id);
           if (el) el.classList.add('disabled');
@@ -753,6 +807,23 @@
       });
     }
 
+    function toggleAuthForm() {
+      const authForm = document.getElementById('auth-form-wrap');
+      const btn = document.getElementById('btn-toggle-reauth');
+      if (authForm) {
+        if (authForm.style.display === 'none') {
+          authForm.style.display = 'grid';
+          authForm.dataset.userOpened = 'true';
+          if (btn) btn.textContent = '▲ 收起更换手机表单';
+          authForm.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          authForm.style.display = 'none';
+          authForm.dataset.userOpened = 'false';
+          if (btn) btn.textContent = '⚙️ 更换手机/重发验证码 (展开表单)';
+        }
+      }
+    }
+
     function selectTab(tab) {
       if (!isLoggedIn && tab !== 'login') {
         setNotice('【未登录门禁保护】请先在下方【步骤1】获取验证码并完成登录解锁，方可使用该功能。', 'error');
@@ -764,6 +835,11 @@
       }
       activeTab = tab;
       syncAuthUi();
+      if (tab === 'login') {
+        setNotice('已切换至【1. 企业认证与登录就绪】大盘', 'info');
+        const card = document.getElementById('view-login');
+        if (card) card.scrollIntoView({ behavior: 'smooth' });
+      }
       if (tab === 'invoice') queryUninvoiced();
       if (tab === 'history') loadIssuedInvoices();
       if (tab === 'recharge') loadAllocations();
