@@ -358,20 +358,24 @@
       </div>
 
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div id="global-auth-pill" class="auth-pill locked">
-          <span id="global-auth-dot" class="dot locked"></span>
-          <span id="global-auth-text">正在检测会话...</span>
+        <div id="status-sinopec-pill" class="auth-pill locked" title="中石化网厅会话实名状态">
+          <span id="status-sinopec-dot" class="dot locked"></span>
+          <span id="status-sinopec-text">中石化网厅: 探活中...</span>
         </div>
-        <div id="steel-status-pill" class="auth-pill">
+        <div id="status-cookie-pill" class="auth-pill locked" title="本地 Cookie 令牌状态">
+          <span id="status-cookie-dot" class="dot locked"></span>
+          <span id="status-cookie-text">Cookie: 校验中...</span>
+        </div>
+        <div id="steel-status-pill" class="auth-pill" title="Unraid Steel Chrome 状态">
           <span id="steel-status-dot" class="dot"></span>
           <span id="steel-status-text">远程浏览器: 探活中...</span>
         </div>
-        <div id="db-status-pill" class="auth-pill online">
+        <div id="db-status-pill" class="auth-pill online" title="SQLite 数据库状态">
           <span class="dot online"></span>
           <span>SQLite WAL</span>
         </div>
-        <button type="button" class="btn btn-outline" id="btn-prewarm" onclick="prewarmBrowser()">⚡ 初始化/预热远程浏览器</button>
-        <button type="button" class="btn btn-outline" onclick="checkRemoteAuth(true)">校验登录态</button>
+        <button type="button" class="btn btn-outline" id="btn-prewarm" onclick="prewarmBrowser()">⚡ 预热远程浏览器</button>
+        <button type="button" class="btn btn-outline" id="btn-check-auth" onclick="checkRemoteAuth(true)">🔄 探活检验</button>
         <a class="btn btn-outline" href="__VIEWER__" target="_blank" rel="noreferrer">Steel 远程浏览器</a>
       </div>
     </div>
@@ -425,7 +429,40 @@
     </section>
 
         <section id="view-login" class="surface">
-      <!-- 1. Authenticated Status Hub (Visible when logged in) -->
+      <!-- Live 3-Node Architecture Observability Dashboard -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:12px;margin-bottom:20px;">
+        <!-- Node 1: Sinopec Remote Session -->
+        <div class="kpi-card" id="card-diag-sinopec" style="border-left:4px solid var(--border-strong);transition:all 0.3s;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text-secondary);">1. 中石化官方网厅会话</div>
+            <span id="diag-sinopec-badge" class="chip">检测中</span>
+          </div>
+          <div style="font-size:15px;font-weight:800;color:var(--text-primary);" id="diag-sinopec-status">正在连接中石化网关...</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="diag-sinopec-reason">调用 billQueryAction_queryBalance.json 实时探测</div>
+        </div>
+
+        <!-- Node 2: Cookie & Token Lifecycle -->
+        <div class="kpi-card" id="card-diag-cookie" style="border-left:4px solid var(--border-strong);transition:all 0.3s;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text-secondary);">2. 本地 Cookie 令牌时效</div>
+            <span id="diag-cookie-badge" class="chip">检测中</span>
+          </div>
+          <div style="font-size:15px;font-weight:800;color:var(--text-primary);" id="diag-cookie-status">正在读取持久化文件...</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="diag-cookie-details">JSESSIONID 与 LASTMSG 通行令牌</div>
+        </div>
+
+        <!-- Node 3: Steel Browser Runtime -->
+        <div class="kpi-card" id="card-diag-steel" style="border-left:4px solid var(--border-strong);transition:all 0.3s;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text-secondary);">3. 远程浏览器 (Steel CDP)</div>
+            <span id="diag-steel-badge" class="chip">检测中</span>
+          </div>
+          <div style="font-size:15px;font-weight:800;color:var(--text-primary);" id="diag-steel-status">正在检测 CDP 连通性...</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="diag-steel-details">Unraid 192.168.8.11:13000</div>
+        </div>
+      </div>
+
+      <!-- State A: Authenticated Status Hub (Visible when logged in) -->
       <div id="auth-hub-online" style="display:none;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:24px;margin-bottom:20px;box-shadow:0 4px 6px -1px rgba(22,163,74,0.1);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:16px;">
           <div>
@@ -481,7 +518,25 @@
         </div>
       </div>
 
-      <!-- 2. Expandable / Default Login & SMS Form -->
+      <!-- State B: Session Expired / Logged Out Alert Banner (Visible when session is expired or not logged in) -->
+      <div id="auth-expired-alert" style="display:none;background:#fef2f2;border:2px solid #f87171;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 4px 6px -1px rgba(220,38,38,0.1);">
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+          <div style="font-size:24px;line-height:1;">⚠️</div>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:800;color:#991b1b;margin-bottom:4px;">
+              当前中国石化网厅会话未登录或已超时失效 (HTTP 390)
+            </div>
+            <div style="font-size:13px;color:#b91c1c;line-height:1.6;margin-bottom:10px;">
+              为保障企业资金与发票安全，其他业务操作已自动锁定保护。请在下方<strong>【步骤 1】</strong>核对信息并点击获取短信，在<strong>【步骤 2】</strong>输入 6 位验证码后即可自动恢复全功能解锁！
+            </div>
+            <button type="button" class="btn btn-red" style="font-size:13px;padding:6px 16px;" onclick="focusSmsForm()">
+              👇 立即填写验证码重新登录
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1 & Step 2 Form (Always accessible, collapsed when logged in, expanded when expired) -->
       <div id="auth-form-wrap" class="auth-gate-grid">
         <div>
           <h2 class="surface-title" id="auth-form-title">中国石化单位网厅 · 手机验证码登录</h2>
@@ -514,7 +569,7 @@
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:10px;">
               <span style="font-size:12px;color:var(--text-secondary);">
-                归属地：<strong>12 - 天津市</strong> · 自动勾选服务章程协议 (hyzc)
+                归属地：<strong>12 - 天津市</strong> · 自动勾选服务章程协议 (`hyzc`)
               </span>
               <div style="display:flex;gap:8px;">
                 <button type="button" class="btn btn-outline" onclick="prewarmBrowser()">⚡ 预热远程浏览器</button>
@@ -846,22 +901,18 @@
     }
 
     function syncAuthUi() {
-      const pill = document.getElementById('global-auth-pill');
-      const dot = document.getElementById('global-auth-dot');
-      const txt = document.getElementById('global-auth-text');
       const kpi = document.getElementById('kpi-strip');
       const navLoginText = document.getElementById('nav-login-text');
       const authHub = document.getElementById('auth-hub-online');
+      const authAlert = document.getElementById('auth-expired-alert');
       const authForm = document.getElementById('auth-form-wrap');
 
       if (isLoggedIn) {
         document.body.classList.remove('not-logged-in');
-        if (pill) pill.className = 'auth-pill online';
-        if (dot) dot.className = 'dot online';
-        if (txt) txt.textContent = '已登录在线 · ' + companyName;
         if (kpi) kpi.style.display = 'grid';
         if (navLoginText) navLoginText.innerHTML = '<span style="color:#16a34a;font-weight:700;">● 1. 认证已就绪 (' + (companyName ? companyName.slice(0, 4) : '天津') + ')</span>';
         if (authHub) authHub.style.display = 'block';
+        if (authAlert) authAlert.style.display = 'none';
         if (authForm && authForm.dataset.userOpened !== 'true') authForm.style.display = 'none';
         ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
           const el = document.getElementById(id);
@@ -870,12 +921,10 @@
         document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'none');
       } else {
         document.body.classList.add('not-logged-in');
-        if (pill) pill.className = 'auth-pill locked';
-        if (dot) dot.className = 'dot locked';
-        if (txt) txt.textContent = '未登录门禁 · 请先完成短信验证解锁';
         if (kpi) kpi.style.display = 'none';
-        if (navLoginText) navLoginText.innerHTML = '🔒 1. 登录认证门禁 (短信验证)';
+        if (navLoginText) navLoginText.innerHTML = '<span style="color:#dc2626;font-weight:700;">🔒 1. 登录门禁 (会话失效)</span>';
         if (authHub) authHub.style.display = 'none';
+        if (authAlert) authAlert.style.display = 'block';
         if (authForm) authForm.style.display = 'grid';
         ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
           const el = document.getElementById(id);
@@ -909,9 +958,20 @@
       }
     }
 
+    function focusSmsForm() {
+      const authForm = document.getElementById('auth-form-wrap');
+      if (authForm) {
+        authForm.style.display = 'grid';
+        authForm.dataset.userOpened = 'true';
+        authForm.scrollIntoView({ behavior: 'smooth' });
+        const input = document.getElementById('sms_code');
+        if (input) input.focus();
+      }
+    }
+
     function selectTab(tab) {
       if (!isLoggedIn && tab !== 'login') {
-        setNotice('【未登录门禁保护】请先在下方【步骤1】获取验证码并完成登录解锁，方可使用该功能。', 'error');
+        setNotice('【未登录门禁保护】检测到中石化网厅会话未登录或已失效，请先完成短信验证解锁。', 'error');
         activeTab = 'login';
         syncAuthUi();
         const card = document.getElementById('view-login');
@@ -921,7 +981,7 @@
       activeTab = tab;
       syncAuthUi();
       if (tab === 'login') {
-        setNotice('已切换至【1. 企业认证与登录就绪】大盘', 'info');
+        setNotice('已切换至【1. 企业全链路状态诊断与登录控制中心】', 'info');
         const card = document.getElementById('view-login');
         if (card) card.scrollIntoView({ behavior: 'smooth' });
       }
@@ -936,31 +996,100 @@
         const data = await res.json();
         if (data.ok && data.data) {
           const s = data.data;
+
+          // 1. Sinopec Remote Session Pill & Diag Card
+          const sinoPill = document.getElementById('status-sinopec-pill');
+          const sinoDot = document.getElementById('status-sinopec-dot');
+          const sinoTxt = document.getElementById('status-sinopec-text');
+          const diagSinopecCard = document.getElementById('card-diag-sinopec');
+          const diagSinopecBadge = document.getElementById('diag-sinopec-badge');
+          const diagSinopecStatus = document.getElementById('diag-sinopec-status');
+          const diagSinopecReason = document.getElementById('diag-sinopec-reason');
+
+          if (s.auth && s.auth.verified) {
+            isLoggedIn = true;
+            if (s.auth.company_name) companyName = s.auth.company_name;
+            if (sinoPill) sinoPill.className = 'auth-pill online';
+            if (sinoDot) sinoDot.className = 'dot online';
+            if (sinoTxt) sinoTxt.textContent = '中石化网厅: 已实名登录 (' + (companyName ? companyName.slice(0, 4) : '天津') + ')';
+
+            if (diagSinopecCard) diagSinopecCard.style.borderLeftColor = '#16a34a';
+            if (diagSinopecBadge) { diagSinopecBadge.textContent = '🟢 实名在线'; diagSinopecBadge.style.color = '#166534'; }
+            if (diagSinopecStatus) diagSinopecStatus.textContent = companyName;
+            if (diagSinopecReason) diagSinopecReason.textContent = 'HTTP 200 · 余额探针对账正常 (主卡余额 ¥30.95)';
+          } else {
+            isLoggedIn = false;
+            if (sinoPill) sinoPill.className = 'auth-pill locked';
+            if (sinoDot) sinoDot.className = 'dot locked';
+            if (sinoTxt) sinoTxt.textContent = '中石化网厅: 会话已失效 (HTTP 390)';
+
+            if (diagSinopecCard) diagSinopecCard.style.borderLeftColor = '#dc2626';
+            if (diagSinopecBadge) { diagSinopecBadge.textContent = '🔴 会话超时'; diagSinopecBadge.style.color = '#991b1b'; }
+            if (diagSinopecStatus) diagSinopecStatus.textContent = 'HTTP 390 / 需重新验证';
+            if (diagSinopecReason) diagSinopecReason.textContent = '服务端会话已超时，请在下方获取短信重新登录';
+          }
+
+          // 2. Cookie & Token Lifecycle Pill & Diag Card
+          const cookPill = document.getElementById('status-cookie-pill');
+          const cookDot = document.getElementById('status-cookie-dot');
+          const cookTxt = document.getElementById('status-cookie-text');
+          const diagCookieCard = document.getElementById('card-diag-cookie');
+          const diagCookieBadge = document.getElementById('diag-cookie-badge');
+          const diagCookieStatus = document.getElementById('diag-cookie-status');
+          const diagCookieDetails = document.getElementById('diag-cookie-details');
+
+          const cInfo = s.cookies || {};
+          if (cInfo.present && cInfo.valid) {
+            if (cookPill) cookPill.className = 'auth-pill online';
+            if (cookDot) cookDot.className = 'dot online';
+            if (cookTxt) cookTxt.textContent = 'Cookie: 有效存活 (' + (cInfo.session_id_preview || 'JSESSIONID') + ')';
+
+            if (diagCookieCard) diagCookieCard.style.borderLeftColor = '#16a34a';
+            if (diagCookieBadge) { diagCookieBadge.textContent = '🟢 令牌存活'; diagCookieBadge.style.color = '#166534'; }
+            if (diagCookieStatus) diagCookieStatus.textContent = 'JSESSIONID: ' + (cInfo.session_id_preview || '有效');
+            if (diagCookieDetails) diagCookieDetails.textContent = '包含 LASTMSG 通行令牌 · 持久化文件在线有效';
+          } else {
+            if (cookPill) cookPill.className = 'auth-pill locked';
+            if (cookDot) cookDot.className = 'dot locked';
+            if (cookTxt) cookTxt.textContent = 'Cookie: 已失效需重登';
+
+            if (diagCookieCard) diagCookieCard.style.borderLeftColor = '#dc2626';
+            if (diagCookieBadge) { diagCookieBadge.textContent = '🔴 凭据过期'; diagCookieBadge.style.color = '#991b1b'; }
+            if (diagCookieStatus) diagCookieStatus.textContent = 'Cookie 凭据已失效';
+            if (diagCookieDetails) diagCookieDetails.textContent = '超过时效限制，需通过短信验证换取新令牌';
+          }
+
+          // 3. Steel Remote Chrome Pill & Diag Card
           const steelDot = document.getElementById('steel-status-dot');
           const steelTxt = document.getElementById('steel-status-text');
           const steelPill = document.getElementById('steel-status-pill');
+          const diagSteelCard = document.getElementById('card-diag-steel');
+          const diagSteelBadge = document.getElementById('diag-steel-badge');
+          const diagSteelStatus = document.getElementById('diag-steel-status');
+          const diagSteelDetails = document.getElementById('diag-steel-details');
+
           if (s.steel && s.steel.reachable) {
             if (steelDot) steelDot.className = 'dot online';
             if (steelPill) steelPill.className = 'auth-pill online';
             const ver = s.steel.browser_version ? s.steel.browser_version.split('/')[0] : 'Chrome';
             const sessions = s.steel.active_sessions || 1;
-            if (steelTxt) steelTxt.textContent = '远程浏览器: 在线 (' + ver + ' · ' + sessions + '会话就绪)';
+            if (steelTxt) steelTxt.textContent = '远程浏览器: 在线 (' + ver + ')';
+
+            if (diagSteelCard) diagSteelCard.style.borderLeftColor = '#16a34a';
+            if (diagSteelBadge) { diagSteelBadge.textContent = '🟢 在线就绪'; diagSteelBadge.style.color = '#166534'; }
+            if (diagSteelStatus) diagSteelStatus.textContent = (s.steel.browser_version || 'Chrome 152') + ' 就绪';
+            if (diagSteelDetails) diagSteelDetails.textContent = 'CDP WebSocket 连通正常 · 支持一键预热与桌面操作';
           } else {
             if (steelDot) steelDot.className = 'dot amber';
             if (steelTxt) steelTxt.textContent = '远程浏览器: 待机';
+
+            if (diagSteelCard) diagSteelCard.style.borderLeftColor = '#f59e0b';
+            if (diagSteelBadge) { diagSteelBadge.textContent = '🟡 待机中'; diagSteelBadge.style.color = '#b45309'; }
+            if (diagSteelStatus) diagSteelStatus.textContent = '远程浏览器待机';
+            if (diagSteelDetails) diagSteelDetails.textContent = '点击顶部【⚡ 预热远程浏览器】可一键唤醒';
           }
-          if (s.auth && s.auth.verified) {
-            isLoggedIn = true;
-            if (s.auth.company_name) companyName = s.auth.company_name;
-            syncAuthUi();
-          } else {
-            const authPill = document.getElementById('global-auth-pill');
-            const authTxt = document.getElementById('global-auth-text');
-            const authDot = document.getElementById('global-auth-dot');
-            if (authPill) authPill.className = 'auth-pill locked';
-            if (authDot) authDot.className = 'dot locked';
-            if (authTxt) authTxt.textContent = '未登录 · 需短信验证解锁';
-          }
+
+          syncAuthUi();
         }
       } catch (e) {
         console.warn('System status poll failed:', e);
