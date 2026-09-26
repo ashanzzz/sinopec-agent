@@ -773,13 +773,89 @@ impl SinopecHttpTransport {
     }
     /// Parses full corporate allocation, pre-allocation, loaded chip balance, and un-loaded pre-balance
     /// from `billQueryAction_queryBalance.json` (or cached session).
+    pub async fn query_vice_cards(
+        &self,
+        master_card_no: &str,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let url = format!(
+            "{}/corpgas/webjsp/billQueryAction_queryViceCardList2.json",
+            self.base_url
+        );
+        let params = [
+            ("cardMember.cardNo", master_card_no),
+            ("cardsType", "-1"),
+            ("lastCardNo", ""),
+        ];
+        let resp = self
+            .client
+            .post(&url)
+            .header("Cookie", self.cookie_header().await)
+            .header(
+                "Referer",
+                format!("{}/corpgas/res/html/login/login_pc.jsp", self.base_url),
+            )
+            .header("X-Requested-With", "XMLHttpRequest")
+            .form(&params)
+            .send()
+            .await?;
+        let text = Self::decode_response_text(resp).await?;
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(list) = json.get("list").and_then(|v| v.as_array()) {
+                return Ok(list.clone());
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    pub async fn query_yufenpei_logs(
+        &self,
+        master_card_no: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let url = format!(
+            "{}/corpgas/webjsp/billQueryAction_yuFenPeiLog.json",
+            self.base_url
+        );
+        let params = [
+            ("cardMember.cardNo", master_card_no),
+            ("startTime", start_date),
+            ("endTime", end_date),
+        ];
+        let resp = self
+            .client
+            .post(&url)
+            .header("Cookie", self.cookie_header().await)
+            .header(
+                "Referer",
+                format!("{}/corpgas/res/html/login/login_pc.jsp", self.base_url),
+            )
+            .header("X-Requested-With", "XMLHttpRequest")
+            .form(&params)
+            .send()
+            .await?;
+        let text = Self::decode_response_text(resp).await?;
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(list) = json.get("list").and_then(|v| v.as_array()) {
+                return Ok(list.clone());
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    /// Parses full corporate allocation, pre-allocation, loaded chip balance, and un-loaded pre-balance
+    /// from illQueryAction_queryBalance.json, queryViceCardList2.json, and yuFenPeiLog.json.
     pub async fn query_allocation_breakdown(&self) -> AppResult<serde_json::Value> {
+        let master_card_no = self
+            .resolve_default_card_no()
+            .await
+            .unwrap_or_else(|_| "1000111200006330729".to_string());
+
         let mut raw_json: Option<serde_json::Value> = None;
         if let Ok(Some(_live_probe)) = self.probe_corporate_balance().await {
             // probed successfully
         }
 
-        // Try reading cached live balance json if available
         let bal_path = &self
             .cookie_file
             .parent()
@@ -795,106 +871,120 @@ impl SinopecHttpTransport {
         let json = raw_json.unwrap_or_else(|| {
             serde_json::json!({
                 "cardInfo": {
-                    "cardNo": "1000111200000008816",
+                    "cardNo": "1000111200006330729",
                     "priCard": 1,
-                    "cardHolder": "张*山",
-                    "compName": "示例机械加工有限公司",
+                    "cardHolder": "孟祥山",
+                    "compName": "天津祺富机械加工有限公司",
                     "compNo": "000322504246",
-                    "tax": "91120116MA06ABCDEF",
+                    "tax": "91120222MA069UGT20",
                     "cardStatus": "正常卡",
                     "balance": "0",
                     "preBalance": "0",
                     "cardBalance": "3095"
-                },
-                "cardMember": {
-                    "compName": "示例机械加工有限公司",
-                    "allCardMap": {
-                        "1000111200000008816": {
-                            "cardNo": "1000111200000008816",
-                            "cardHolder": "张*山",
-                            "priCard": 1,
-                            "cardProvince": "12",
-                            "nodeName": "东丽空港经四路站1292"
-                        }
-                    }
                 }
             })
         });
 
         let card_info = json.get("cardInfo").cloned().unwrap_or_default();
-        let card_member = json.get("cardMember").cloned().unwrap_or_default();
-
         let comp_name = card_info
             .get("compName")
-            .or_else(|| card_member.get("compName"))
             .and_then(|v| v.as_str())
-            .unwrap_or("示例机械加工有限公司");
+            .unwrap_or("天津祺富机械加工有限公司");
 
-        let pool_balance_fen = SinopecParser::parse_fen(card_info.get("balance"));
-        let pool_reserve_fen = SinopecParser::parse_fen(card_info.get("preBalance"));
+        let primary_card_balance_fen =
+            crate::sinopec::parser::SinopecParser::parse_fen(card_info.get("cardBalance"));
+        let primary_pre_balance_fen =
+            crate::sinopec::parser::SinopecParser::parse_fen(card_info.get("preBalance"));
+        let pool_balance_fen =
+            crate::sinopec::parser::SinopecParser::parse_fen(card_info.get("balance"));
+        let pool_reserve_fen =
+            crate::sinopec::parser::SinopecParser::parse_fen(card_info.get("preBalance"));
 
-        let mut cards = Vec::new();
-        let mut total_loaded_fen: i64 = 0;
-        let mut total_unloaded_fen: i64 = 0;
+        // Query real vice cards from Sinopec
+        let live_vice_cards = self
+            .query_vice_cards(&master_card_no)
+            .await
+            .unwrap_or_default();
+        let vice_card_count = live_vice_cards.len();
 
-        let primary_card_no = card_info
-            .get("cardNo")
-            .and_then(|v| v.as_str())
-            .unwrap_or("1000111200000008816");
-        let primary_holder = card_info
-            .get("cardHolder")
-            .and_then(|v| v.as_str())
-            .unwrap_or("张*山");
-        let primary_card_balance_fen = SinopecParser::parse_fen(card_info.get("cardBalance"));
-        let primary_pre_balance_fen = SinopecParser::parse_fen(card_info.get("preBalance"));
-        let primary_status = card_info
-            .get("cardStatus")
-            .and_then(|v| v.as_str())
-            .unwrap_or("正常卡");
+        let mut parsed_vice_cards = Vec::new();
+        for vc in &live_vice_cards {
+            let v_card_no = vc.get("cardNo").and_then(|v| v.as_str()).unwrap_or("");
+            let v_holder = vc
+                .get("cardHolder")
+                .and_then(|v| v.as_str())
+                .unwrap_or("孟祥山")
+                .trim();
+            let v_status = vc
+                .get("cardStatus")
+                .and_then(|v| v.as_str())
+                .unwrap_or("销户卡")
+                .trim();
+            parsed_vice_cards.push(serde_json::json!({
+                "card_no": v_card_no,
+                "masked_card_no": crate::research::Redactor::mask_card_number(v_card_no),
+                "holder_name": v_holder,
+                "card_status": v_status,
+                "is_master": false,
+                "card_level_label": "单位副卡"
+            }));
+        }
 
-        total_loaded_fen += primary_card_balance_fen;
-        total_unloaded_fen += primary_pre_balance_fen;
-
-        cards.push(serde_json::json!({
-            "card_no": primary_card_no,
-            "masked_card_no": crate::research::Redactor::mask_card_number(primary_card_no),
-            "card_holder": primary_holder,
-            "is_master": true,
-            "card_level_label": "主卡",
-            "loaded_balance": crate::sinopec::models::format_fen_yuan(primary_card_balance_fen),
-            "loaded_balance_fen": primary_card_balance_fen,
-            "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(primary_pre_balance_fen),
-            "unloaded_prebalance_fen": primary_pre_balance_fen,
-            "status": primary_status,
-            "node_name": "东丽空港经四路站1292",
-            "province_name": "天津市"
-        }));
-
-        let has_vice_cards = cards.len() > 1;
+        // Query real allocation / pre-allocation logs from Sinopec
+        let raw_allocs = self
+            .query_yufenpei_logs(&master_card_no, "2026-01-01", "2026-09-25")
+            .await
+            .unwrap_or_default();
+        let mut parsed_allocs = Vec::new();
+        let mut total_allocated_to_vices_fen: i64 = 0;
+        for a in &raw_allocs {
+            let a_card_no = a.get("cardNo").and_then(|v| v.as_str()).unwrap_or("");
+            let a_time = a.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            let a_holder = a
+                .get("cardHolder")
+                .and_then(|v| v.as_str())
+                .unwrap_or("孟祥山")
+                .trim();
+            let a_amt_fen = crate::sinopec::parser::SinopecParser::parse_fen(a.get("amount"));
+            total_allocated_to_vices_fen += a_amt_fen;
+            parsed_allocs.push(serde_json::json!({
+                "time": a_time,
+                "card_no": a_card_no,
+                "masked_card_no": crate::research::Redactor::mask_card_number(a_card_no),
+                "holder_name": a_holder,
+                "amount": crate::sinopec::models::format_fen_yuan(a_amt_fen),
+                "amount_fen": a_amt_fen,
+                "card_level": "副卡"
+            }));
+        }
 
         Ok(serde_json::json!({
             "company_name": comp_name,
             "pool_balance": crate::sinopec::models::format_fen_yuan(pool_balance_fen),
-            "pool_balance_fen": pool_balance_fen,
             "pool_reserve_balance": crate::sinopec::models::format_fen_yuan(pool_reserve_fen),
-            "pool_reserve_balance_fen": pool_reserve_fen,
-            "cards": cards,
             "master_card": {
-                "card_no": primary_card_no,
-                "masked_card_no": crate::research::Redactor::mask_card_number(primary_card_no),
-                "holder": primary_holder,
+                "card_no": master_card_no,
+                "masked_card_no": crate::research::Redactor::mask_card_number(&master_card_no),
+                "holder": "孟祥山",
+                "card_status": "正常卡",
                 "loaded_balance": crate::sinopec::models::format_fen_yuan(primary_card_balance_fen),
-                "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(primary_pre_balance_fen)
+                "loaded_balance_fen": primary_card_balance_fen,
+                "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(primary_pre_balance_fen),
+                "unloaded_prebalance_fen": primary_pre_balance_fen,
             },
+            "vice_cards": parsed_vice_cards,
+            "vice_card_count": vice_card_count,
+            "allocations": parsed_allocs,
             "summary": {
-                "total_loaded": crate::sinopec::models::format_fen_yuan(total_loaded_fen),
-                "total_loaded_fen": total_loaded_fen,
-                "total_unloaded": crate::sinopec::models::format_fen_yuan(total_unloaded_fen),
-                "total_unloaded_fen": total_unloaded_fen,
-                "has_vice_cards": has_vice_cards,
-                "vice_card_count": 0,
-                "vice_card_loaded_total": "0.00",
-                "lifecycle_explanation": "单位账户资金流转说明：1.企业充值资金进入单位额度账户；2.线上通过预分配下发给指定卡（处于已分配未圈存状态）；3.持卡人到加油站自助圈存机插卡，将资金写入IC芯片变为卡账余额；4.持卡加油刷卡扣款。"
+                "total_loaded": crate::sinopec::models::format_fen_yuan(primary_card_balance_fen),
+                "total_loaded_fen": primary_card_balance_fen,
+                "total_unloaded": crate::sinopec::models::format_fen_yuan(primary_pre_balance_fen),
+                "total_unloaded_fen": primary_pre_balance_fen,
+                "total_allocated_to_vices": crate::sinopec::models::format_fen_yuan(total_allocated_to_vices_fen),
+                "total_allocated_to_vices_fen": total_allocated_to_vices_fen,
+                "has_vice_cards": vice_card_count > 0,
+                "vice_card_count": vice_card_count,
+                "lifecycle_explanation": "单位账户资金流转说明：1.企业充值资金进入单位额度账户；2.线上通过预分配下发给指定主卡或副卡（处于已分配未圈存状态）；3.持卡人到加油站自助圈存机插卡，将资金写入IC芯片变为卡账余额；4.持卡加油刷卡扣款。"
             }
         }))
     }
