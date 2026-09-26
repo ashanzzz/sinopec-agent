@@ -44,7 +44,13 @@ pub fn build_router(state: AppState) -> Router {
         .route("/transactions", get(transactions_handler))
         .route("/recharges", get(recharges_handler))
         .route("/allocations", get(allocations_handler))
+        .route("/allocations/logs", get(allocations_logs_handler))
+        .route(
+            "/cards/{card_no}/transactions",
+            get(card_transactions_handler),
+        )
         .route("/browser/prewarm", post(browser_prewarm_handler))
+        .route("/browser/screenshot", get(browser_screenshot_handler))
         .route("/invoices/create-live", post(invoice_create_live_handler))
         .route("/invoices/preview", post(invoice_preview_handler))
         .route(
@@ -514,6 +520,115 @@ async fn invoice_create_live_handler(
 async fn allocations_handler(State(state): State<AppState>) -> AppResult<Json<ApiEnvelope<Value>>> {
     let breakdown = state.http.query_allocation_breakdown().await?;
     Ok(ApiEnvelope::success(breakdown))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AllocationLogsQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub card_no: Option<String>,
+}
+
+async fn allocations_logs_handler(
+    State(state): State<AppState>,
+    Query(q): Query<AllocationLogsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.unwrap_or_else(|| "2026-01-01".to_string());
+    let end = q.end_date.unwrap_or_else(|| "2026-09-25".to_string());
+    let master_card_no = state
+        .http
+        .resolve_default_card_no()
+        .await
+        .unwrap_or_else(|_| "1000111200006330729".to_string());
+    let raw_logs = state
+        .http
+        .query_yufenpei_logs(&master_card_no, &start, &end)
+        .await?;
+    let filtered: Vec<Value> = if let Some(target_card) = &q.card_no {
+        raw_logs
+            .into_iter()
+            .filter(|a| a.get("cardNo").and_then(|v| v.as_str()) == Some(target_card.as_str()))
+            .collect()
+    } else {
+        raw_logs
+    };
+    Ok(ApiEnvelope::success(json!({
+        "master_card_no": master_card_no,
+        "start_date": start,
+        "end_date": end,
+        "count": filtered.len(),
+        "list": filtered
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CardTransactionsQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub tra_type: Option<String>,
+}
+
+async fn card_transactions_handler(
+    State(state): State<AppState>,
+    Path(card_no): Path<String>,
+    Query(q): Query<CardTransactionsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.unwrap_or_else(|| "2026-01-01".to_string());
+    let end = q.end_date.unwrap_or_else(|| "2026-09-25".to_string());
+    let raw_logs = state
+        .http
+        .query_card_transaction_logs(&card_no, &start, &end)
+        .await?;
+
+    let filtered: Vec<Value> = if let Some(tt) = &q.tra_type {
+        if tt == "all" || tt.is_empty() {
+            raw_logs
+        } else {
+            raw_logs
+                .into_iter()
+                .filter(|item| {
+                    item.get("traName")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.contains(tt))
+                        .unwrap_or(false)
+                })
+                .collect()
+        }
+    } else {
+        raw_logs
+    };
+
+    let total_fen: i64 = filtered
+        .iter()
+        .map(|item| crate::sinopec::parser::SinopecParser::parse_fen(item.get("amount")))
+        .sum();
+    let total_amount = crate::sinopec::models::format_fen_yuan(total_fen);
+
+    Ok(ApiEnvelope::success(json!({
+        "card_no": card_no,
+        "start_date": start,
+        "end_date": end,
+        "tra_type": q.tra_type.unwrap_or_else(|| "all".to_string()),
+        "count": filtered.len(),
+        "total_amount": total_amount,
+        "total_fen": total_fen,
+        "list": filtered
+    })))
+}
+
+async fn browser_screenshot_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let url = state.browser.get_url().await.unwrap_or_default();
+    let title = state.browser.get_title().await.unwrap_or_default();
+    let b64 = state.browser.screenshot().await?.unwrap_or_default();
+    let now = chrono::Utc::now().to_rfc3339();
+    Ok(ApiEnvelope::success(json!({
+        "url": url,
+        "title": title,
+        "screenshot_png_base64": b64,
+        "captured_at": now
+    })))
 }
 
 async fn browser_prewarm_handler(

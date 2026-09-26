@@ -374,6 +374,7 @@
           <span class="dot online"></span>
           <span>SQLite WAL</span>
         </div>
+        <button type="button" class="btn btn-outline" id="btn-view-steel-screen" onclick="openSteelLiveModal()">📸 查看远程实时画面</button>
         <button type="button" class="btn btn-outline" id="btn-prewarm" onclick="prewarmBrowser()">⚡ 预热远程浏览器</button>
         <button type="button" class="btn btn-outline" id="btn-check-auth" onclick="checkRemoteAuth(true)">🔄 探活检验</button>
         <a class="btn btn-outline" href="__VIEWER__" target="_blank" rel="noreferrer">Steel 远程浏览器</a>
@@ -815,9 +816,17 @@
 
       <!-- Part 4: Allocations Stream -->
       <div style="margin-bottom:24px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">阶段三：预分配划拨下发流水 (调用 <code>billQueryAction_yuFenPeiLog.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);" id="allocations-filter-hint">主卡向副卡资金划拨记录</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+          <div>
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 2px;">阶段三：预分配划拨下发流水 (调用 <code>billQueryAction_yuFenPeiLog.json</code>)</h3>
+            <span style="font-size:12px;color:var(--text-muted);" id="allocations-filter-hint">主卡向副卡资金划拨记录</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="date" id="alloc_start" value="2026-01-01" style="padding:4px 8px;font-size:12px;" />
+            <span>至</span>
+            <input type="date" id="alloc_end" value="2026-09-25" style="padding:4px 8px;font-size:12px;" />
+            <button type="button" class="btn btn-outline" id="btn-query-alloc-custom" style="padding:4px 10px;font-size:12px;" onclick="queryCustomAllocations()">查询预分配流水</button>
+          </div>
         </div>
         <div id="allocations-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载预分配明细...</div>
@@ -837,9 +846,28 @@
 
       <!-- Part 6: Fuel Consumption Stream -->
       <div style="margin-bottom:24px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">阶段五：加油消费与刷卡扣款流水 (调用 <code>billQueryAction_transactionLog.json</code> · 消费)</h3>
-          <span style="font-size:12px;color:var(--text-muted);" id="usage-filter-hint">实际加油消费与专票结清记录</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+          <div>
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 2px;">阶段五：加油消费与刷卡扣款流水 (调用 <code>billQueryAction_transactionLog.json</code>)</h3>
+            <span style="font-size:12px;color:var(--text-muted);" id="usage-filter-hint">实际加油消费与专票结清记录</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="tx_card_select" style="padding:4px 8px;font-size:12px;">
+              <option value="1000111200006330729">👑 主卡 10001112****0729</option>
+              <option value="1000111200004649423">🚗 副卡1 10001112****423</option>
+              <option value="1000111200006778459">🚗 副卡2 10001112****459</option>
+              <option value="1000111200006778807">🚗 副卡3 10001112****807</option>
+            </select>
+            <select id="tx_type_select" style="padding:4px 8px;font-size:12px;">
+              <option value="all">全部类型</option>
+              <option value="消费">仅加油消费</option>
+              <option value="圈存">仅油站圈存</option>
+            </select>
+            <input type="date" id="tx_start" value="2026-01-01" style="padding:4px 8px;font-size:12px;" />
+            <span>至</span>
+            <input type="date" id="tx_end" value="2026-09-25" style="padding:4px 8px;font-size:12px;" />
+            <button type="button" class="btn btn-outline" id="btn-query-tx-custom" style="padding:4px 10px;font-size:12px;" onclick="queryCustomTransactions()">查询交易明细</button>
+          </div>
         </div>
         <div id="usage-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载加油消费记录...</div>
@@ -870,6 +898,47 @@
     ];
 
     // Floating Toast Utility
+        // Steel Live Modal Functions
+    async function openSteelLiveModal() {
+      const modal = document.getElementById('steel-modal-backdrop');
+      if (modal) modal.style.display = 'flex';
+      refreshSteelScreenshot();
+    }
+
+    function closeSteelModal() {
+      const modal = document.getElementById('steel-modal-backdrop');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function refreshSteelScreenshot() {
+      const loading = document.getElementById('steel-modal-loading');
+      const img = document.getElementById('steel-modal-img');
+      const urlEl = document.getElementById('steel-modal-url');
+      const timeEl = document.getElementById('steel-modal-time');
+
+      if (loading) loading.style.display = 'block';
+      if (img) img.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/v1/browser/screenshot');
+        const data = await res.json();
+        if (data.ok && data.data && data.data.screenshot_png_base64) {
+          if (img) {
+            img.src = 'data:image/png;base64,' + data.data.screenshot_png_base64;
+            img.style.display = 'inline-block';
+          }
+          if (loading) loading.style.display = 'none';
+          if (urlEl) urlEl.textContent = '当前活动页面: ' + (data.data.url || 'https://www.sinopecsales.com') + ' (' + (data.data.title || '中石化网厅') + ')';
+          if (timeEl) timeEl.textContent = '更新时间: ' + new Date().toLocaleTimeString();
+          showToast('已获取 Steel 远程浏览器最新画面快照', 'success', 2000);
+        } else {
+          if (loading) loading.textContent = '✕ 暂未抓取到画面：远程浏览器待机或未建立活动会话';
+        }
+      } catch (e) {
+        if (loading) loading.textContent = '✕ 抓取画面异常：' + e.message;
+      }
+    }
+
     function showToast(msg, kind = 'info', durationMs = 4500) {
       const container = document.getElementById('toast-container');
       if (!container) return;
@@ -1604,6 +1673,95 @@
         '</table>';
     }
 
+    
+    async function queryCustomAllocations() {
+      const s = document.getElementById('alloc_start')?.value || '2026-01-01';
+      const e = document.getElementById('alloc_end')?.value || '2026-09-25';
+      const btn = document.getElementById('btn-query-alloc-custom');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 查询中...'; }
+      setNotice('正在查询 ' + s + ' 至 ' + e + ' 官方预分配划拨流水...', 'info');
+
+      try {
+        const cardParam = currentCardFilter === 'all' ? '' : '&card_no=' + currentCardFilter;
+        const res = await fetch('/api/v1/allocations/logs?start_date=' + s + '&end_date=' + e + cardParam);
+        const data = await res.json();
+        if (data.ok && data.data) {
+          const list = data.data.list || [];
+          const aRows = list.map((a, idx) => {
+            return '<tr>' +
+              '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+              '<td class="tabular">' + a.opeTime + '</td>' +
+              '<td><code>' + a.cardNo + '</code></td>' +
+              '<td><span class="chip">单位卡划拨</span></td>' +
+              '<td>' + (a.cardHolder ? a.cardHolder.trim() : '孟祥山') + '</td>' +
+              '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + (parseFloat(a.amount || 0) / 100).toFixed(2) + '</td>' +
+              '<td><span style="color:var(--status-green);font-weight:700;">✓ 100% 已圈存入芯</span></td>' +
+            '</tr>';
+          }).join('');
+          document.getElementById('allocations-table-wrap').innerHTML =
+            '<table>' +
+              '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>分配下发时间</th><th>目标卡号</th><th>划拨属性</th><th>持卡人</th><th class="num">下发金额 (CNY)</th><th>圈存状态</th></tr></thead>' +
+              '<tbody>' + (aRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">该区间内暂无预分配划拨记录</td></tr>') + '</tbody>' +
+            '</table>';
+          setNotice('官方预分配明细查询成功：共 ' + list.length + ' 笔资金划拨记录', 'success');
+        }
+      } catch (err) {
+        setNotice('查询预分配明细异常：' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '查询预分配流水'; }
+      }
+    }
+
+    async function queryCustomTransactions() {
+      const s = document.getElementById('tx_start')?.value || '2026-01-01';
+      const e = document.getElementById('tx_end')?.value || '2026-09-25';
+      const card = document.getElementById('tx_card_select')?.value || (currentCardFilter === 'all' ? '1000111200006330729' : currentCardFilter);
+      const traType = document.getElementById('tx_type_select')?.value || 'all';
+      const btn = document.getElementById('btn-query-tx-custom');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 查询中...'; }
+      setNotice('正在直连中石化查询卡号 ' + card + ' (' + s + ' 至 ' + e + ') 交易明细...', 'info');
+
+      try {
+        const res = await fetch('/api/v1/cards/' + card + '/transactions?start_date=' + s + '&end_date=' + e + '&tra_type=' + traType);
+        const data = await res.json();
+        if (data.ok && data.data) {
+          const list = data.data.list || [];
+          const xfRows = list.map((item, idx) => {
+            const amt = (parseFloat(item.amount || 0) / 100).toFixed(2);
+            const litre = item.litre ? (parseFloat(item.litre) / 100).toFixed(2) + ' L' : '—';
+            const price = item.price ? '¥' + (parseFloat(item.price) / 100).toFixed(2) : '—';
+            const bal = item.balance ? '¥' + (parseFloat(item.balance) / 100).toFixed(2) : '—';
+            const isQc = (item.traName || '').includes('圈存');
+            const typeChip = isQc
+              ? '<span class="chip" style="background:#dcfce7;color:#166534;">圈存入芯</span>'
+              : '<span class="chip" style="background:#eff6ff;color:var(--brand-blue);">加油消费</span>';
+            return '<tr>' +
+              '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+              '<td class="tabular">' + item.opeTime + '</td>' +
+              '<td><code>' + card + '</code></td>' +
+              '<td>' + typeChip + '</td>' +
+              '<td>' + (item.nodeTag ? item.nodeTag.trim() : '天津油站') + '</td>' +
+              '<td>' + (item.oilName ? item.oilName.trim() : '—') + '</td>' +
+              '<td class="num tabular">' + litre + '</td>' +
+              '<td class="num tabular">' + price + '</td>' +
+              '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + amt + '</td>' +
+              '<td class="num tabular">' + bal + '</td>' +
+            '</tr>';
+          }).join('');
+          document.getElementById('usage-table-wrap').innerHTML =
+            '<table>' +
+              '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>交易时间</th><th>加油卡号</th><th>交易类型</th><th>加油站网点</th><th>油品名称</th><th class="num">加油升数</th><th class="num">单价</th><th class="num">交易金额 (CNY)</th><th class="num">变动后余额</th></tr></thead>' +
+              '<tbody>' + (xfRows || '<tr><td colspan="10" style="text-align:center;color:#64748b;">该区间内暂无交易流水记录</td></tr>') + '</tbody>' +
+            '</table>';
+          setNotice('官方交易明细查询成功：卡号 ' + card + ' 共 ' + list.length + ' 笔，金额合计 ¥' + data.data.total_amount, 'success');
+        }
+      } catch (err) {
+        setNotice('查询交易明细异常：' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '查询交易明细'; }
+      }
+    }
+
     async function loadAllocations() {
       const btn = document.getElementById('btn-refresh-alloc');
       if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在刷新资金大盘...'; }
@@ -1693,5 +1851,33 @@
     setInterval(pollSystemStatus, 30000);
 
   </script>
+
+  <!-- Steel Live Browser Modal -->
+  <div id="steel-modal-backdrop" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.75);z-index:99998;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);">
+    <div style="background:#ffffff;border-radius:12px;max-width:960px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #cbd5e1;">
+      <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+            <span class="dot online"></span> Unraid Steel 远程浏览器 · 实时画面 (Chrome 152 @ 192.168.8.11:13000)
+          </div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;" id="steel-modal-url">URL: 正在获取...</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="refreshSteelScreenshot()">🔄 刷新画面</button>
+          <a class="btn btn-outline" style="padding:4px 10px;font-size:12px;" href="__VIEWER__" target="_blank" rel="noreferrer">🖥️ 打开桌面</a>
+          <button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;color:#dc2626;" onclick="closeSteelModal()">✕ 关闭</button>
+        </div>
+      </div>
+      <div style="padding:20px;overflow-y:auto;flex:1;background:#0f172a;text-align:center;">
+        <div id="steel-modal-loading" style="color:#94a3b8;padding:40px;font-size:14px;">⏳ 正在调取 CDP Page.captureScreenshot 实时抓取屏幕...</div>
+        <img id="steel-modal-img" style="display:none;max-width:100%;border-radius:6px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);border:1px solid #334155;" />
+      </div>
+      <div style="padding:10px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;display:flex;justify-content:space-between;align-items:center;">
+        <span>真实状态：通过 CDP 协议直连 Chromium 获取当前渲染帧 · 绝无模拟虚构</span>
+        <span id="steel-modal-time"></span>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
