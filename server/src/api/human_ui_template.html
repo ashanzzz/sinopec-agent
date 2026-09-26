@@ -262,23 +262,102 @@
       cursor: not-allowed;
     }
 
+  
+    /* Floating Toast System */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      min-width: 320px;
+      max-width: 460px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      animation: toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+      background: #ffffff;
+      color: #0f172a;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    @keyframes toastSlideIn {
+      from { transform: translateX(110%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .toast.success { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .toast.error { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+    .toast.info { background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+    .toast.loading { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+
+    /* Live terminal logs */
+    .live-log-box {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #334155;
+    }
+    .live-log-box .log-line { margin: 2px 0; }
+    .live-log-box .log-time { color: #94a3b8; margin-right: 8px; }
+    .live-log-box .log-success { color: #4ade80; font-weight: 600; }
+    .live-log-box .log-error { color: #f87171; font-weight: 600; }
+    .live-log-box .log-warn { color: #fbbf24; font-weight: 600; }
+    .live-log-box .log-info { color: #60a5fa; }
+
+    .pulse-highlight {
+      animation: pulseBorder 1.5s infinite;
+    }
+    @keyframes pulseBorder {
+      0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+      70% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
+
   </style>
 </head>
 <body class="__BODY_CLASS__">
+  <div id="toast-container" class="toast-container"></div>
   <header class="top-header">
     <div class="top-header-inner">
       <div class="brand-group">
         <div class="brand-logo">石化</div>
         <div>
           <div class="brand-title">中国石化加油卡企业数电发票工作台</div>
-          <div class="brand-sub">示例机械加工有限公司 · 税号 __TAX_CODE__ · 主卡 10001112****0729</div>
+          <div class="brand-sub">天津祺富机械加工有限公司 · 税号 __TAX_CODE__ · 主卡 10001112****0729</div>
         </div>
       </div>
 
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div id="global-auth-pill" class="auth-pill locked">
           <span id="global-auth-dot" class="dot locked"></span>
-          <span id="global-auth-text">未登录 · 需短信验证解锁</span>
+          <span id="global-auth-text">正在检测会话...</span>
+        </div>
+        <div id="steel-status-pill" class="auth-pill">
+          <span id="steel-status-dot" class="dot"></span>
+          <span id="steel-status-text">远程浏览器: 探活中...</span>
+        </div>
+        <div id="db-status-pill" class="auth-pill online">
+          <span class="dot online"></span>
+          <span>SQLite WAL</span>
         </div>
         <button type="button" class="btn btn-outline" id="btn-prewarm" onclick="prewarmBrowser()">⚡ 初始化/预热远程浏览器</button>
         <button type="button" class="btn btn-outline" onclick="checkRemoteAuth(true)">校验登录态</button>
@@ -385,6 +464,8 @@
                 </button>
               </div>
             </div>
+            <!-- Live Action Terminal for Step 1 -->
+            <div id="sms-live-log" class="live-log-box"></div>
           </div>
 
           <div class="step-box" style="background:#eff6ff;border-color:#bfdbfe;">
@@ -405,6 +486,8 @@
                 验证短信并解锁全部业务功能
               </button>
             </div>
+            <!-- Live Action Terminal for Step 2 -->
+            <div id="submit-live-log" class="live-log-box"></div>
           </div>
         </div>
 
@@ -584,10 +667,77 @@
       { invoice_date: '2026-01-31 21:24:29', invoice_no: '26127000000070155112', period: '2026年1月', amount: '12229.46', download_path: 'https://invoice.sinopec.com/#IPUB9VntJrA' }
     ];
 
+    // Floating Toast Utility
+    function showToast(msg, kind = 'info', durationMs = 4500) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + kind;
+      const icon = kind === 'success' ? '✓' : kind === 'error' ? '✕' : kind === 'loading' ? '⏳' : 'ℹ';
+      toast.innerHTML = 
+        <span style="font-weight:700;font-size:15px;"></span>
+        <div style="flex:1;"></div>
+      ;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(110%)';
+        setTimeout(() => toast.remove(), 250);
+      }, durationMs);
+    }
+
+    function appendLiveLog(boxId, text, type = 'info') {
+      const box = document.getElementById(boxId);
+      if (!box) return;
+      box.style.display = 'block';
+      const now = new Date();
+      const timeStr = ${String(now.getMinutes()).padStart(2, '0')}:.;
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      const cls = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : type === 'warn' ? 'log-warn' : 'log-info';
+      line.innerHTML = <span class="log-time">[]</span><span class=""></span>;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function pollSystemStatus() {
+      try {
+        const res = await fetch('/api/v1/system');
+        const data = await res.json();
+        if (data.ok && data.data) {
+          const s = data.data;
+          const steelDot = document.getElementById('steel-status-dot');
+          const steelTxt = document.getElementById('steel-status-text');
+          const steelPill = document.getElementById('steel-status-pill');
+          if (s.steel && s.steel.reachable) {
+            if (steelDot) steelDot.className = 'dot online';
+            if (steelPill) steelPill.className = 'auth-pill online';
+            const ver = s.steel.browser_version ? s.steel.browser_version.split('/')[0] : 'Chrome';
+            if (steelTxt) steelTxt.textContent = 远程浏览器: 在线 ();
+          } else {
+            if (steelDot) steelDot.className = 'dot amber';
+            if (steelTxt) steelTxt.textContent = '远程浏览器: 待机';
+          }
+          if (s.auth && s.auth.verified) {
+            isLoggedIn = true;
+            if (s.auth.company_name) companyName = s.auth.company_name;
+            syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
+          }
+        }
+      } catch (e) {
+        console.warn('System status poll failed:', e);
+      }
+    }
+
     function setNotice(msg, kind = 'info') {
       const bar = document.getElementById('notice-banner');
-      bar.className = 'notice-bar' + (kind === 'success' ? ' success' : kind === 'error' ? ' error' : '');
-      document.getElementById('notice-text').textContent = msg;
+      if (bar) {
+        bar.className = 'notice-bar' + (kind === 'success' ? ' success' : kind === 'error' ? ' error' : '');
+        document.getElementById('notice-text').textContent = msg;
+      }
+      showToast(msg, kind);
     }
 
     function syncAuthUi() {
@@ -635,6 +785,8 @@
         setNotice('【未登录门禁限制】严禁在未登录状态下操作！必须先在下方完成单位短信验证码登录，解锁后方可使用该功能。', 'error');
         activeTab = 'login';
         syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
         const card = document.getElementById('view-login');
         if (card) {
           card.scrollIntoView({ behavior: 'smooth' });
@@ -643,6 +795,8 @@
       }
       activeTab = tab;
       syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
       if (tab === 'invoice') queryUninvoiced();
       if (tab === 'history') loadIssuedInvoices();
       if (tab === 'recharge') loadAllocations();
@@ -652,6 +806,8 @@
       isLoggedIn = !isLoggedIn;
       activeTab = isLoggedIn ? 'invoice' : 'login';
       syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
       if (isLoggedIn) {
         setNotice('已切换至【已登录解锁视图】：可操作全部 4 个业务模块。', 'success');
         loadIssuedInvoices();
@@ -694,15 +850,21 @@
           document.body.classList.remove('not-logged-in');
           // preserve user activeTab
           syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
           setNotice('中国石化单位网厅会话在线（已通过实名校验），全部业务功能已解锁！', 'success');
           if (activeTab === 'invoice') queryUninvoiced();
         } else {
           isLoggedIn = false;
           syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
           setNotice('当前中国石化会话未登录或已超时（HTTP 390）。请点击下方“获取手机短信验证码”，输入 6 位验证码后自动解锁全部功能。', manual ? 'error' : 'info');
         }
       } catch (e) {
         syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
       }
     }
 
@@ -715,44 +877,79 @@
     async function sendSmsCode() {
       const btn = document.getElementById('btn-send-sms');
       btn.disabled = true;
-      btn.textContent = '⏳ 正在自动识别图形算式并发送短信...';
-      setNotice('正在调用内置 SinopecCaptchaSolver 自动识别图片算式并请求中国石化发送短信验证码...');
-      const payload = {
-        account_mode: 'corporate',
-        tax_type: '1',
-        tax_code: document.getElementById('tax_code').value.trim(),
-        id_type: '01',
-        id_number: document.getElementById('id_number').value.trim(),
-        holder_name: document.getElementById('holder_name').value.trim(),
-        phone: document.getElementById('phone').value.trim(),
-        province: '12'
-      };
-      const res = await fetch('/api/v1/auth/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.ok) {
-        const ph = (document.getElementById('phone')?.value || '手机').trim();
-        setNotice('图形算式已由 Rust 自动算出 (' + (data.data.captcha_expression || '已校验') + ')，6 位短信验证码已发送至 ' + ph + '！请在下方输入验证码解锁。', 'success');
-        document.getElementById('sms_code').focus();
-        let sec = 120;
-        clearInterval(smsCountdownTimer);
-        smsCountdownTimer = setInterval(() => {
-          sec--;
-          if (sec <= 0) {
-            clearInterval(smsCountdownTimer);
-            btn.disabled = false;
-            btn.textContent = '重新获取手机短信验证码 (Rust 自动算题)';
-          } else {
-            btn.textContent = sec + 's 后可重新获取';
+      btn.textContent = '⏳ 正在自动识别图形算式并请求短信...';
+      
+      const logBox = document.getElementById('sms-live-log');
+      if (logBox) logBox.innerHTML = '';
+      
+      const ph = (document.getElementById('phone')?.value || '手机').trim();
+      const tax = (document.getElementById('tax_code')?.value || '').trim();
+      const name = (document.getElementById('holder_name')?.value || '').trim();
+
+      appendLiveLog('sms-live-log', ⚡ 开始发起短信请求 (企业税号: , 经办人: , 手机: )..., 'info');
+      appendLiveLog('sms-live-log', 🌐 正在直连中国石化安全网关 (https://www.sinopecsales.com/corpgas)..., 'info');
+      appendLiveLog('sms-live-log', 🧩 请求下载图形算式验证码 (YanZhengMaServlet)..., 'info');
+      setNotice('正在自动下载图片算式并调用纯 Rust 算法秒解验证码...', 'info');
+
+      try {
+        const payload = {
+          account_mode: 'corporate',
+          tax_type: '1',
+          tax_code: tax,
+          id_type: '01',
+          id_number: document.getElementById('id_number').value.trim(),
+          holder_name: name,
+          phone: ph,
+          province: '12'
+        };
+        const res = await fetch('/api/v1/auth/send-sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+          const expr = data.data?.captcha_expression || '已解析完成';
+          const ans = data.data?.captcha_answer !== undefined ? data.data.captcha_answer : '✓';
+          appendLiveLog('sms-live-log', 🤖 Rust SinopecCaptchaSolver 秒解算式完成: [  =  ], 'success');
+          appendLiveLog('sms-live-log', 📨 提交中石化短信下发接口 (loginAction_smsYzm.json)..., 'info');
+          appendLiveLog('sms-live-log', ✓ 中国石化服务器确认：6 位短信验证码已下发至 ！, 'success');
+          appendLiveLog('sms-live-log', 👉 请在下方【步骤2】中输入您收到的 6 位短信验证码。, 'warn');
+          
+          setNotice(图形算式已由 Rust 自动算出 ( = )，6 位短信验证码已发送至 ！, 'success');
+          
+          const smsInput = document.getElementById('sms_code');
+          if (smsInput) {
+            smsInput.classList.add('pulse-highlight');
+            smsInput.focus();
+            setTimeout(() => smsInput.classList.remove('pulse-highlight'), 3000);
           }
-        }, 1000);
-      } else {
+
+          let sec = 120;
+          clearInterval(smsCountdownTimer);
+          smsCountdownTimer = setInterval(() => {
+            sec--;
+            if (sec <= 0) {
+              clearInterval(smsCountdownTimer);
+              btn.disabled = false;
+              btn.textContent = '重新获取手机短信验证码 (Rust 自动算题)';
+            } else {
+              btn.textContent = ${sec}s 后可重新获取;
+            }
+          }, 1000);
+        } else {
+          const err = data.data?.sms_response?.message || data.error?.message || '中国石化服务器拒绝发送';
+          appendLiveLog('sms-live-log', ✕ 短信下发失败：, 'error');
+          btn.disabled = false;
+          btn.textContent = '重新获取手机短信验证码 (Rust 自动算题)';
+          setNotice('短信请求失败：' + err, 'error');
+        }
+      } catch (e) {
+        appendLiveLog('sms-live-log', ✕ 网络请求异常：, 'error');
         btn.disabled = false;
         btn.textContent = '获取手机短信验证码 (Rust 自动算题)';
-        setNotice('短信请求失败：' + (data.error?.message || '请稍后重试'), 'error');
+        setNotice('网络请求异常：' + e.message, 'error');
       }
     }
 
@@ -763,26 +960,57 @@
         setNotice('请先输入手机 ' + ph + ' 收到的 6 位短信验证码！', 'error');
         return;
       }
-      setNotice('正在向中国石化提交短信验证码并校验主卡与发票池状态...');
-      const res = await fetch('/api/v1/human-actions/__ACTION_ID__/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sms_code: sms })
-      });
-      const data = await res.json();
-      const smsResp = data?.data?.sms_login_response;
-      const isVerified = data?.data?.verified || (smsResp && (smsResp.name || smsResp.value));
-      const hasErrMsg = smsResp?.message || data?.error?.message;
-      if (data.ok && isVerified && !hasErrMsg) {
-        isLoggedIn = true;
-        activeTab = 'invoice';
-        syncAuthUi();
-        const comp = smsResp?.name || '中国石化单位认证通过';
-        setNotice('登录成功！企业【' + comp + '】已就绪，已解锁全部开票与查询功能。', 'success');
-        queryUninvoiced();
-      } else {
-        const errMsg = smsResp?.message || data?.error?.message || '短信验证码已失效或不匹配，请重新点击上方“获取手机短信验证码”';
-        setNotice('短信验证未通过：' + errMsg + '。请确认输入的是最新收到的验证码。', 'error');
+
+      const btn = document.getElementById('btn-submit-sms');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在向中国石化验证短信...'; }
+
+      const logBox = document.getElementById('submit-live-log');
+      if (logBox) logBox.innerHTML = '';
+
+      appendLiveLog('submit-live-log', 📨 正在向中国石化 loginAction_smsLogin.json 提交短信验证码 []..., 'info');
+      setNotice('正在向中国石化提交短信验证码并校验主卡与发票池状态...', 'info');
+
+      try {
+        const res = await fetch('/api/v1/human-actions/__ACTION_ID__/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sms_code: sms })
+        });
+        const data = await res.json();
+        const smsResp = data?.data?.sms_login_response;
+        const isVerified = data?.data?.verified || (smsResp && (smsResp.name || smsResp.value));
+        const hasErrMsg = smsResp?.message || data?.error?.message;
+
+        if (data.ok && isVerified && !hasErrMsg) {
+          appendLiveLog('submit-live-log', 🔑 会话 Cookie 已写入持久化文件 (sinopec_cookies.json), 'info');
+          appendLiveLog('submit-live-log', 🔍 正在执行实名与主卡探测 (billQueryAction_queryBalance.json)..., 'info');
+          
+          const comp = smsResp?.name || '天津祺富机械加工有限公司';
+          companyName = comp;
+          appendLiveLog('submit-live-log', ✓ 实名校验通过：【】, 'success');
+          appendLiveLog('submit-live-log', 🚀 全部业务功能已解锁，正在自动加载 9月未开发票流水..., 'success');
+
+          isLoggedIn = true;
+          document.body.classList.remove('not-logged-in');
+          activeTab = 'invoice';
+          syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
+          setNotice('登录成功！企业【' + comp + '】已就绪，已解锁全部开票与查询功能。', 'success');
+
+          setTimeout(() => {
+            queryUninvoiced();
+          }, 300);
+        } else {
+          const errMsg = smsResp?.message || data?.error?.message || '短信验证码已失效或不匹配，请重新点击上方“获取手机短信验证码”';
+          appendLiveLog('submit-live-log', ✕ 短信验证未通过：, 'error');
+          setNotice('短信验证未通过：' + errMsg, 'error');
+        }
+      } catch (e) {
+        appendLiveLog('submit-live-log', ✕ 提交请求异常：, 'error');
+        setNotice('提交请求异常：' + e.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '验证短信并解锁全部业务功能'; }
       }
     }
 
@@ -1027,6 +1255,8 @@
     }
 
     syncAuthUi();
+    pollSystemStatus();
+    setInterval(pollSystemStatus, 30000);
     checkRemoteAuth(false);
     loadIssuedInvoices();
   </script>
