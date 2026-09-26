@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+﻿<?xml version="1.0"?>
 <Container version="2">
   <Name>sinopec-agent</Name>
   <Repository>ghcr.io/ashanzzz/sinopec-agent:latest</Repository>
@@ -7,7 +7,7 @@
   <Privileged>false</Privileged>
   <Overview>Sinopec Fuel Card Invoice Automation &amp; AI Research Server (Rust + SQLite + MCP + Steel CDP)</Overview>
   <Category>Productivity: Tools: Network:Web</Category>
-  <WebUI>http://[IP]:[PORT:8788]/api/v1/health</WebUI>
+  <WebUI>http://[IP]:[PORT:8788]/</WebUI>
   <Config Name="REST and MCP Port" Target="8788" Default="8788" Mode="tcp" Description="HTTP REST (/api/v1), MCP (/mcp), and Human Action UI (/human/{token})" Type="Port" Display="always" Required="true" Mask="false">8788</Config>
   <Config Name="Appdata Directory" Target="/data" Default="/mnt/user/appdata/sinopec-agent" Mode="rw" Description="SQLite sinopec.db, secrets, auth cookies, downloads, and redacted research data" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/sinopec-agent</Config>
   <Config Name="SINOPEC_PUBLIC_URL" Target="SINOPEC_PUBLIC_URL" Default="http://192.168.8.11:8788" Mode="" Description="Public URL used in Human Action links" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.8.11:8788</Config>
