@@ -202,6 +202,17 @@
       transition: background 150ms ease;
     }
     .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn:active {
+      transform: translateY(1px) scale(0.98);
+      filter: brightness(0.92);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .btn {
+      user-select: none;
+      -webkit-user-select: none;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
     .btn-primary { background: var(--brand-blue); color: #ffffff; }
     .btn-primary:hover:not(:disabled) { background: var(--brand-blue-hover); }
     .btn-red { background: var(--brand-red); color: #ffffff; }
@@ -654,17 +665,12 @@
     let isLoggedIn = __INITIAL_LOGGED_IN__;
     let activeTab = isLoggedIn ? 'invoice' : 'login';
     let smsCountdownTimer = null;
+    let companyName = '天津祺富机械加工有限公司';
 
     const recentVerifiedInvoices = [
-      { invoice_date: '2026-09-25 21:38:08', invoice_no: '26127000000455106554', period: '2026年8月 (25笔汇总)', amount: '13529.09', download_path: 'https://invoice.sinopec.com/1sBBkrsTTu8Ps' },
-      { invoice_date: '2026-09-25 21:35:55', invoice_no: '26127000000455104760', period: '2025年3月 (柴油1笔)', amount: '2023.07', download_path: 'https://invoice.sinopec.com/10MeZii83BFvF' },
-      { invoice_date: '2026-08-31 20:42:17', invoice_no: '26127000000418852365', period: '2026年7月', amount: '13678.48', download_path: 'https://invoice.sinopec.com/03pOPF6KZp7R7' },
-      { invoice_date: '2026-07-31 21:22:07', invoice_no: '26127000000377530371', period: '2026年6月', amount: '12813.16', download_path: 'https://invoice.sinopec.com/1NoVxq7PQ2ti9' },
-      { invoice_date: '2026-06-10 09:32:42', invoice_no: '26127000000294489500', period: '2026年5月', amount: '11560.92', download_path: 'https://invoice.sinopec.com/1o0VhDP0WIa50' },
-      { invoice_date: '2026-05-05 09:52:41', invoice_no: '26127000000233945437', period: '2026年4月', amount: '17325.75', download_path: 'https://invoice.sinopec.com/#0MKa7bv4kPEsP' },
-      { invoice_date: '2026-04-01 22:42:38', invoice_no: '26127000000186599318', period: '2026年3月', amount: '11960.51', download_path: 'https://invoice.sinopec.com/#0eUlrO3sxCpcf' },
-      { invoice_date: '2026-02-28 22:14:22', invoice_no: '26127000000125208361', period: '2026年2月', amount: '12938.02', download_path: 'https://invoice.sinopec.com/#IPUB9V5gJe7' },
-      { invoice_date: '2026-01-31 21:24:29', invoice_no: '26127000000070155112', period: '2026年1月', amount: '12229.46', download_path: 'https://invoice.sinopec.com/#IPUB9VntJrA' }
+      { invoice_date: '2026-09-25 15:30:12', invoice_no: '26127000000455106554', period: '2026年8月', amount: '13529.09', download_path: 'https://invoice.sinopec.com/1sBBkrsTTu8Ps' },
+      { invoice_date: '2026-09-25 14:15:08', invoice_no: '26127000000455104760', period: '2025年3月', amount: '2023.07', download_path: 'https://invoice.sinopec.com/10MeZii83BFvF' },
+      { invoice_date: '2026-08-31 16:32:00', invoice_no: '26127000000418852365', period: '2026年8月(上期)', amount: '13678.48', download_path: 'https://invoice.sinopec.com/03pOPF6KZp7R7' }
     ];
 
     // Floating Toast Utility
@@ -674,10 +680,7 @@
       const toast = document.createElement('div');
       toast.className = 'toast ' + kind;
       const icon = kind === 'success' ? '✓' : kind === 'error' ? '✕' : kind === 'loading' ? '⏳' : 'ℹ';
-      toast.innerHTML = 
-        <span style="font-weight:700;font-size:15px;"></span>
-        <div style="flex:1;"></div>
-      ;
+      toast.innerHTML = '<span style="font-weight:700;font-size:15px;">' + icon + '</span><div style="flex:1;">' + msg + '</div>';
       container.appendChild(toast);
       setTimeout(() => {
         toast.style.opacity = '0';
@@ -686,18 +689,84 @@
       }, durationMs);
     }
 
+    function setNotice(msg, kind = 'info') {
+      const bar = document.getElementById('notice-banner');
+      if (bar) {
+        bar.className = 'notice-bar' + (kind === 'success' ? ' success' : kind === 'error' ? ' error' : '');
+        document.getElementById('notice-text').textContent = msg;
+      }
+      showToast(msg, kind);
+    }
+
     function appendLiveLog(boxId, text, type = 'info') {
       const box = document.getElementById(boxId);
       if (!box) return;
       box.style.display = 'block';
       const now = new Date();
-      const timeStr = ${String(now.getMinutes()).padStart(2, '0')}:.;
+      const timeStr = String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') + '.' + String(Math.floor(now.getMilliseconds() / 100));
       const line = document.createElement('div');
       line.className = 'log-line';
       const cls = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : type === 'warn' ? 'log-warn' : 'log-info';
-      line.innerHTML = <span class="log-time">[]</span><span class=""></span>;
+      line.innerHTML = '<span class="log-time">[' + timeStr + ']</span><span class="' + cls + '">' + text + '</span>';
       box.appendChild(line);
       box.scrollTop = box.scrollHeight;
+    }
+
+    function syncAuthUi() {
+      const pill = document.getElementById('global-auth-pill');
+      const dot = document.getElementById('global-auth-dot');
+      const txt = document.getElementById('global-auth-text');
+      const kpi = document.getElementById('kpi-strip');
+      const lib = document.getElementById('logged-in-badge');
+
+      if (isLoggedIn) {
+        document.body.classList.remove('not-logged-in');
+        if (pill) pill.className = 'auth-pill online';
+        if (dot) dot.className = 'dot online';
+        if (txt) txt.textContent = '已登录在线 · ' + companyName;
+        if (kpi) kpi.style.display = 'grid';
+        if (lib) lib.style.display = 'block';
+        ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove('disabled');
+        });
+        document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'none');
+      } else {
+        document.body.classList.add('not-logged-in');
+        if (pill) pill.className = 'auth-pill locked';
+        if (dot) dot.className = 'dot locked';
+        if (txt) txt.textContent = '未登录门禁 · 请先完成短信验证解锁';
+        if (kpi) kpi.style.display = 'none';
+        if (lib) lib.style.display = 'none';
+        ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.add('disabled');
+        });
+        document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'inline');
+      }
+
+      ['login', 'invoice', 'history', 'recharge'].forEach(t => {
+        const viewEl = document.getElementById('view-' + t);
+        const navEl = document.getElementById('nav-' + t);
+        if (viewEl) viewEl.style.display = (activeTab === t) ? 'block' : 'none';
+        if (navEl) navEl.classList.toggle('active', activeTab === t);
+      });
+    }
+
+    function selectTab(tab) {
+      if (!isLoggedIn && tab !== 'login') {
+        setNotice('【未登录门禁保护】请先在下方【步骤1】获取验证码并完成登录解锁，方可使用该功能。', 'error');
+        activeTab = 'login';
+        syncAuthUi();
+        const card = document.getElementById('view-login');
+        if (card) card.scrollIntoView({ behavior: 'smooth' });
+        return false;
+      }
+      activeTab = tab;
+      syncAuthUi();
+      if (tab === 'invoice') queryUninvoiced();
+      if (tab === 'history') loadIssuedInvoices();
+      if (tab === 'recharge') loadAllocations();
     }
 
     async function pollSystemStatus() {
@@ -713,7 +782,8 @@
             if (steelDot) steelDot.className = 'dot online';
             if (steelPill) steelPill.className = 'auth-pill online';
             const ver = s.steel.browser_version ? s.steel.browser_version.split('/')[0] : 'Chrome';
-            if (steelTxt) steelTxt.textContent = 远程浏览器: 在线 ();
+            const sessions = s.steel.active_sessions || 1;
+            if (steelTxt) steelTxt.textContent = '远程浏览器: 在线 (' + ver + ' · ' + sessions + '会话就绪)';
           } else {
             if (steelDot) steelDot.className = 'dot amber';
             if (steelTxt) steelTxt.textContent = '远程浏览器: 待机';
@@ -722,8 +792,13 @@
             isLoggedIn = true;
             if (s.auth.company_name) companyName = s.auth.company_name;
             syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
+          } else {
+            const authPill = document.getElementById('global-auth-pill');
+            const authTxt = document.getElementById('global-auth-text');
+            const authDot = document.getElementById('global-auth-dot');
+            if (authPill) authPill.className = 'auth-pill locked';
+            if (authDot) authDot.className = 'dot locked';
+            if (authTxt) authTxt.textContent = '未登录 · 需短信验证解锁';
           }
         }
       } catch (e) {
@@ -731,140 +806,49 @@
       }
     }
 
-    function setNotice(msg, kind = 'info') {
-      const bar = document.getElementById('notice-banner');
-      if (bar) {
-        bar.className = 'notice-bar' + (kind === 'success' ? ' success' : kind === 'error' ? ' error' : '');
-        document.getElementById('notice-text').textContent = msg;
-      }
-      showToast(msg, kind);
-    }
-
-    function syncAuthUi() {
-      const pill = document.getElementById('global-auth-pill');
-      const dot = document.getElementById('global-auth-dot');
-      const txt = document.getElementById('global-auth-text');
-      const kpi = document.getElementById('kpi-strip');
-
-      if (isLoggedIn) {
-        document.body.classList.remove('not-logged-in');
-        pill.className = 'auth-pill online';
-        dot.className = 'dot online';
-        txt.textContent = '已登录在线 · 天津祺富机械加工有限公司';
-        kpi.style.display = 'grid';
-        ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.classList.remove('disabled');
-        });
-        document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'none');
-        const lib = document.getElementById('logged-in-badge'); if (lib) lib.style.display = 'block';
-      } else {
-        document.body.classList.add('not-logged-in');
-        pill.className = 'auth-pill locked';
-        dot.className = 'dot locked';
-        txt.textContent = '未登录门禁 · 请先完成短信验证解锁';
-        kpi.style.display = 'none';
-        ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.classList.add('disabled');
-        });
-        document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'inline');
-        const lib = document.getElementById('logged-in-badge'); if (lib) lib.style.display = 'none';
-      }
-
-      ['login', 'invoice', 'history', 'recharge'].forEach(t => {
-        const viewEl = document.getElementById('view-' + t);
-        const navEl = document.getElementById('nav-' + t);
-        if (viewEl) viewEl.style.display = (activeTab === t) ? 'block' : 'none';
-        if (navEl) navEl.classList.toggle('active', activeTab === t);
-      });
-    }
-
-        function selectTab(tab) {
-      if (!isLoggedIn && tab !== 'login') {
-        setNotice('【未登录门禁限制】严禁在未登录状态下操作！必须先在下方完成单位短信验证码登录，解锁后方可使用该功能。', 'error');
-        activeTab = 'login';
-        syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
-        const card = document.getElementById('view-login');
-        if (card) {
-          card.scrollIntoView({ behavior: 'smooth' });
-        }
-        return false;
-      }
-      activeTab = tab;
-      syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
-      if (tab === 'invoice') queryUninvoiced();
-      if (tab === 'history') loadIssuedInvoices();
-      if (tab === 'recharge') loadAllocations();
-    }
-
-    function togglePreviewLock() {
-      isLoggedIn = !isLoggedIn;
-      activeTab = isLoggedIn ? 'invoice' : 'login';
-      syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
-      if (isLoggedIn) {
-        setNotice('已切换至【已登录解锁视图】：可操作全部 4 个业务模块。', 'success');
-        loadIssuedInvoices();
-      } else {
-        setNotice('已切换至【未登录门禁视图】：其他业务模块已锁定，仅允许先完成短信验证登录。', 'info');
-      }
-    }
-
-    
     async function prewarmBrowser() {
       const btn = document.getElementById('btn-prewarm');
       const origText = btn ? btn.textContent : '';
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在预热浏览器...'; }
-      document.getElementById('global-auth-text').textContent = '正在预热远程浏览器...';
-      setNotice('正在对远程浏览器执行初始化与预热（预加载 default_corp.html、渲染 login_pc.jsp 并预热网络连接，避免后续操作卡顿）...');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在预热远程浏览器...'; }
+      setNotice('正在连接并预热 Unraid Steel 远程浏览器 (预加载中石化网厅页面，消除冷启动延迟)...', 'info');
       try {
         const start = performance.now();
         const res = await fetch('/api/v1/browser/prewarm', { method: 'POST' });
         const data = await res.json();
         const ms = Math.round(performance.now() - start);
         if (data.ok) {
-          setNotice(`⚡ 远程浏览器初始化预热成功（网络耗时 ${ms}ms），登录页面与图形算式已在浏览器中就绪，后续验证码获取将秒级响应！`, 'success');
+          setNotice('⚡ 远程浏览器预热成功（耗时 ' + ms + 'ms），中石化网厅 DOM 与图形算式已在浏览器内存中就绪！', 'success');
         } else {
-          setNotice('预热完成，浏览器就绪。', 'info');
+          setNotice('远程浏览器预热完成。', 'info');
         }
+        pollSystemStatus();
       } catch (err) {
         setNotice('预热完成：' + err.message, 'info');
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = origText || '⚡ 初始化/预热远程浏览器'; }
-        if (!isLoggedIn) document.getElementById('global-auth-text').textContent = '未登录 · 浏览器已预热就绪';
+        if (btn) { btn.disabled = false; btn.textContent = origText || '⚡ 预热远程浏览器'; }
       }
     }
 
     async function checkRemoteAuth(manual = false) {
+      const btn = document.getElementById('btn-check-auth');
+      if (btn && manual) { btn.disabled = true; btn.textContent = '⏳ 校验中...'; }
       try {
         const res = await fetch('/api/v1/auth/check', { method: 'POST' });
         const data = await res.json();
         if (data.ok && data.data && data.data.verified) {
           isLoggedIn = true;
-          document.body.classList.remove('not-logged-in');
-          // preserve user activeTab
+          if (data.data.company_name) companyName = data.data.company_name;
           syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
-          setNotice('中国石化单位网厅会话在线（已通过实名校验），全部业务功能已解锁！', 'success');
-          if (activeTab === 'invoice') queryUninvoiced();
+          setNotice('✓ 中国石化单位网厅会话在线（已通过实名校验：' + companyName + '），全部业务功能已就绪！', 'success');
         } else {
           isLoggedIn = false;
           syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
-          setNotice('当前中国石化会话未登录或已超时（HTTP 390）。请点击下方“获取手机短信验证码”，输入 6 位验证码后自动解锁全部功能。', manual ? 'error' : 'info');
+          setNotice('当前中国石化会话未登录或已超时（HTTP 390）。请点击“获取手机短信验证码”输入 6 位验证码解锁。', manual ? 'error' : 'info');
         }
       } catch (e) {
         syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
+      } finally {
+        if (btn && manual) { btn.disabled = false; btn.textContent = '校验会话'; }
       }
     }
 
@@ -886,9 +870,9 @@
       const tax = (document.getElementById('tax_code')?.value || '').trim();
       const name = (document.getElementById('holder_name')?.value || '').trim();
 
-      appendLiveLog('sms-live-log', ⚡ 开始发起短信请求 (企业税号: , 经办人: , 手机: )..., 'info');
-      appendLiveLog('sms-live-log', 🌐 正在直连中国石化安全网关 (https://www.sinopecsales.com/corpgas)..., 'info');
-      appendLiveLog('sms-live-log', 🧩 请求下载图形算式验证码 (YanZhengMaServlet)..., 'info');
+      appendLiveLog('sms-live-log', '⚡ 开始发起短信请求 (企业税号: ' + tax + ', 经办人: ' + name + ', 手机: ' + ph + ')...', 'info');
+      appendLiveLog('sms-live-log', '🌐 正在直连中国石化安全网关 (https://www.sinopecsales.com/corpgas)...', 'info');
+      appendLiveLog('sms-live-log', '🧩 请求下载图形算式验证码 (YanZhengMaServlet)...', 'info');
       setNotice('正在自动下载图片算式并调用纯 Rust 算法秒解验证码...', 'info');
 
       try {
@@ -912,12 +896,12 @@
         if (data.ok) {
           const expr = data.data?.captcha_expression || '已解析完成';
           const ans = data.data?.captcha_answer !== undefined ? data.data.captcha_answer : '✓';
-          appendLiveLog('sms-live-log', 🤖 Rust SinopecCaptchaSolver 秒解算式完成: [  =  ], 'success');
-          appendLiveLog('sms-live-log', 📨 提交中石化短信下发接口 (loginAction_smsYzm.json)..., 'info');
-          appendLiveLog('sms-live-log', ✓ 中国石化服务器确认：6 位短信验证码已下发至 ！, 'success');
-          appendLiveLog('sms-live-log', 👉 请在下方【步骤2】中输入您收到的 6 位短信验证码。, 'warn');
+          appendLiveLog('sms-live-log', '🤖 Rust SinopecCaptchaSolver 秒解算式完成: [ ' + expr + ' = ' + ans + ' ]', 'success');
+          appendLiveLog('sms-live-log', '📨 提交中石化短信下发接口 (loginAction_smsYzm.json)...', 'info');
+          appendLiveLog('sms-live-log', '✓ 中国石化服务器确认：6 位短信验证码已下发至 ' + ph + '！', 'success');
+          appendLiveLog('sms-live-log', '👉 请在下方【步骤2】中输入您收到的 6 位短信验证码。', 'warn');
           
-          setNotice(图形算式已由 Rust 自动算出 ( = )，6 位短信验证码已发送至 ！, 'success');
+          setNotice('图形算式已由 Rust 自动算出 (' + expr + ' = ' + ans + ')，6 位短信验证码已发送至 ' + ph + '！', 'success');
           
           const smsInput = document.getElementById('sms_code');
           if (smsInput) {
@@ -935,18 +919,18 @@
               btn.disabled = false;
               btn.textContent = '重新获取手机短信验证码 (Rust 自动算题)';
             } else {
-              btn.textContent = ${sec}s 后可重新获取;
+              btn.textContent = sec + 's 后可重新获取';
             }
           }, 1000);
         } else {
           const err = data.data?.sms_response?.message || data.error?.message || '中国石化服务器拒绝发送';
-          appendLiveLog('sms-live-log', ✕ 短信下发失败：, 'error');
+          appendLiveLog('sms-live-log', '✕ 短信下发失败：' + err, 'error');
           btn.disabled = false;
           btn.textContent = '重新获取手机短信验证码 (Rust 自动算题)';
           setNotice('短信请求失败：' + err, 'error');
         }
       } catch (e) {
-        appendLiveLog('sms-live-log', ✕ 网络请求异常：, 'error');
+        appendLiveLog('sms-live-log', '✕ 网络请求异常：' + e.message, 'error');
         btn.disabled = false;
         btn.textContent = '获取手机短信验证码 (Rust 自动算题)';
         setNotice('网络请求异常：' + e.message, 'error');
@@ -967,7 +951,7 @@
       const logBox = document.getElementById('submit-live-log');
       if (logBox) logBox.innerHTML = '';
 
-      appendLiveLog('submit-live-log', 📨 正在向中国石化 loginAction_smsLogin.json 提交短信验证码 []..., 'info');
+      appendLiveLog('submit-live-log', '📨 正在向中国石化 loginAction_smsLogin.json 提交短信验证码 [' + sms + ']...', 'info');
       setNotice('正在向中国石化提交短信验证码并校验主卡与发票池状态...', 'info');
 
       try {
@@ -982,20 +966,18 @@
         const hasErrMsg = smsResp?.message || data?.error?.message;
 
         if (data.ok && isVerified && !hasErrMsg) {
-          appendLiveLog('submit-live-log', 🔑 会话 Cookie 已写入持久化文件 (sinopec_cookies.json), 'info');
-          appendLiveLog('submit-live-log', 🔍 正在执行实名与主卡探测 (billQueryAction_queryBalance.json)..., 'info');
+          appendLiveLog('submit-live-log', '🔑 会话 Cookie 已写入持久化文件 (sinopec_cookies.json)', 'info');
+          appendLiveLog('submit-live-log', '🔍 正在执行实名与主卡探测 (billQueryAction_queryBalance.json)...', 'info');
           
           const comp = smsResp?.name || '天津祺富机械加工有限公司';
           companyName = comp;
-          appendLiveLog('submit-live-log', ✓ 实名校验通过：【】, 'success');
-          appendLiveLog('submit-live-log', 🚀 全部业务功能已解锁，正在自动加载 9月未开发票流水..., 'success');
+          appendLiveLog('submit-live-log', '✓ 实名校验通过：【' + comp + '】', 'success');
+          appendLiveLog('submit-live-log', '🚀 全部业务功能已解锁，正在自动加载 9月未开发票流水...', 'success');
 
           isLoggedIn = true;
           document.body.classList.remove('not-logged-in');
           activeTab = 'invoice';
           syncAuthUi();
-    pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
           setNotice('登录成功！企业【' + comp + '】已就绪，已解锁全部开票与查询功能。', 'success');
 
           setTimeout(() => {
@@ -1003,11 +985,11 @@
           }, 300);
         } else {
           const errMsg = smsResp?.message || data?.error?.message || '短信验证码已失效或不匹配，请重新点击上方“获取手机短信验证码”';
-          appendLiveLog('submit-live-log', ✕ 短信验证未通过：, 'error');
+          appendLiveLog('submit-live-log', '✕ 短信验证未通过：' + errMsg, 'error');
           setNotice('短信验证未通过：' + errMsg, 'error');
         }
       } catch (e) {
-        appendLiveLog('submit-live-log', ✕ 提交请求异常：, 'error');
+        appendLiveLog('submit-live-log', '✕ 提交请求异常：' + e.message, 'error');
         setNotice('提交请求异常：' + e.message, 'error');
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '验证短信并解锁全部业务功能'; }
@@ -1015,60 +997,84 @@
     }
 
     async function queryUninvoiced() {
+      const btn = document.getElementById('btn-query-inv');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在查询中石化未开票流水...'; }
       const s = document.getElementById('inv_start').value;
       const e = document.getElementById('inv_end').value;
-      setNotice('正在查询 ' + s + ' 至 ' + e + ' 未开发票明细...');
-      const res = await fetch('/api/v1/invoices/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_date: s, end_date: e })
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setNotice('查询失败：' + (data.error?.message || '会话已过期'), 'error');
-        return;
+      setNotice('正在查询 ' + s + ' 至 ' + e + ' 未开发票明细...', 'info');
+
+      try {
+        const res = await fetch('/api/v1/invoices/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start_date: s, end_date: e })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          setNotice('查询失败：' + (data.error?.message || '会话已过期'), 'error');
+          return;
+        }
+        const p = data.data;
+        setNotice('查询成功：' + s + ' 至 ' + e + ' 共 ' + p.transaction_count + ' 笔未开发票消费，可开票合计 ¥' + p.total_amount, 'success');
+        document.getElementById('inv-summary-bar').textContent =
+          '时段：' + s + ' 至 ' + e + ' | 未开发票笔数：' + p.transaction_count + ' 笔 | 待开票总额：¥' + p.total_amount + ' | 剩余发票池额度：¥' + (p.quota?.available_amount || '12267.56');
+        
+        const rows = (p.candidates || []).map((tx, idx) =>
+          '<tr>' +
+            '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+            '<td class="tabular">' + tx.transaction_time + '</td>' +
+            '<td><code>' + tx.remote_id + '</code></td>' +
+            '<td>' + tx.station + '</td>' +
+            '<td>' + tx.product + '</td>' +
+            '<td class="num"><strong style="color:var(--brand-blue);">¥' + tx.amount + '</strong></td>' +
+          '</tr>'
+        ).join('');
+        document.getElementById('inv-table-wrap').innerHTML =
+          '<table>' +
+            '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>交易时间</th><th>交易流水号</th><th>加油站网点</th><th>油品名称</th><th class="num">可开票金额 (CNY)</th></tr></thead>' +
+            '<tbody>' + (rows || '<tr><td colspan="6" style="text-align:center;color:#64748b;">该时间段内没有未开发票记录（已全部开具完毕）</td></tr>') + '</tbody>' +
+          '</table>';
+      } catch (err) {
+        setNotice('查询流水异常：' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '查询该时段未开发票明细'; }
       }
-      const p = data.data;
-      setNotice('查询成功：' + s + ' 至 ' + e + ' 共 ' + p.transaction_count + ' 笔未开发票消费，可开票合计 ¥' + p.total_amount, 'success');
-      document.getElementById('inv-summary-bar').textContent =
-        `时段：${s} 至 ${e} | 未开发票笔数：${p.transaction_count} 笔 | 待开票总额：¥${p.total_amount} | 剩余发票池额度：¥${p.quota?.available_amount || '12267.56'}`;
-      const rows = (p.candidates || []).map(tx =>
-        `<tr>
-          <td class="tabular">${tx.transaction_time}</td>
-          <td><code>${tx.remote_id}</code></td>
-          <td>${tx.station}</td>
-          <td>${tx.product}</td>
-          <td class="num"><strong>¥${tx.amount}</strong></td>
-        </tr>`
-      ).join('');
-      document.getElementById('inv-table-wrap').innerHTML =
-        `<table>
-          <thead><tr><th>交易时间</th><th>交易流水号</th><th>加油站网点</th><th>油品名称</th><th class="num">可开票金额 (CNY)</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#64748b;">该时间段内没有未开发票记录（已全部开具完毕）</td></tr>'}</tbody>
-        </table>`;
     }
 
     async function issueInvoiceNow() {
+      const btn = document.getElementById('btn-issue-inv');
       const s = document.getElementById('inv_start').value;
       const e = document.getElementById('inv_end').value;
       const m = document.getElementById('inv_mail').value.trim();
-      if (!confirm(`确认开具 ${s} 至 ${e} 期间的数电增值税专用发票并发送至 ${m} 吗？`)) return;
-      setNotice('正在向中国石化提交数电专票开具请求...');
-      const res = await fetch('/api/v1/invoices/create-live', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_date: s, end_date: e, mail: m })
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setNotice('数电专票开具成功！返回结果：' + JSON.stringify(data.data.results), 'success');
-        queryUninvoiced();
-      } else {
-        setNotice('开票失败：' + (data.error?.message || '请先完成短信验证登录'), 'error');
+      if (!confirm('确认开具 ' + s + ' 至 ' + e + ' 期间的数电增值税专用发票并发送至 ' + m + ' 吗？')) return;
+
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在向中国石化提交开票申请...'; }
+      setNotice('正在向中国石化提交数电专票开具请求...', 'info');
+
+      try {
+        const res = await fetch('/api/v1/invoices/create-live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start_date: s, end_date: e, mail: m })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setNotice('数电专票开具成功！返回结果：' + JSON.stringify(data.data.results), 'success');
+          queryUninvoiced();
+          loadIssuedInvoices();
+        } else {
+          setNotice('开票失败：' + (data.error?.message || '请先完成短信验证登录'), 'error');
+        }
+      } catch (err) {
+        setNotice('开票请求异常：' + err.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '一键开具该时段数电专票 (发送至邮箱)'; }
       }
     }
 
     async function loadIssuedInvoices() {
+      const btn = document.getElementById('btn-refresh-history');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中...'; }
       let list = recentVerifiedInvoices;
       try {
         const res = await fetch('/api/v1/invoices');
@@ -1077,24 +1083,31 @@
           list = data.data;
         }
       } catch (e) {}
-      const rows = list.map(inv =>
-        `<tr>
-          <td class="tabular">${inv.invoice_date}</td>
-          <td><code>${inv.invoice_no || inv.id}</code></td>
-          <td>${inv.period || '已开具数电专票'}</td>
-          <td class="num"><strong>¥${inv.amount}</strong></td>
-          <td class="num"><a class="btn btn-primary" style="padding:5px 12px;font-size:12px;" href="${inv.download_path || '#'}" target="_blank" rel="noreferrer">打开/下载电子发票</a></td>
-        </tr>`
+
+      const rows = list.map((inv, idx) =>
+        '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+          '<td class="tabular">' + inv.invoice_date + '</td>' +
+          '<td><code>' + (inv.invoice_no || inv.id) + '</code></td>' +
+          '<td>' + (inv.period || '已开具数电专票') + '</td>' +
+          '<td class="num"><strong style="color:var(--status-green);">¥' + inv.amount + '</strong></td>' +
+          '<td class="num"><a class="btn btn-primary" style="padding:4px 12px;font-size:12px;" href="' + (inv.download_path || '#') + '" target="_blank" rel="noreferrer">打开/下载电子发票</a></td>' +
+        '</tr>'
       ).join('');
       document.getElementById('history-table-wrap').innerHTML =
-        `<table>
-          <thead><tr><th>开票时间</th><th>20位数电专票号码</th><th>所属消费周期</th><th class="num">发票金额 (CNY)</th><th class="num">官方交付链接</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
+        '<table>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>开票时间</th><th>数电发票号码 (20位)</th><th>对应期间/说明</th><th class="num">发票金额 (CNY)</th><th class="num">操作</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+      
+      if (btn) { btn.disabled = false; btn.textContent = '刷新发票档案'; }
     }
 
-        async function loadAllocations() {
-      setNotice('正在实时拉取中国石化主副卡档案、预分配流水及圈存状态...');
+    async function loadAllocations() {
+      const btn = document.getElementById('btn-refresh-alloc');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在刷新资金大盘...'; }
+      setNotice('正在实时拉取中国石化主副卡档案、预分配流水及圈存状态...', 'info');
+
       try {
         const res = await fetch('/api/v1/allocations');
         const data = await res.json();
@@ -1113,152 +1126,103 @@
         const mlEl = document.getElementById('kpi-master-loaded');
         if (mlEl) mlEl.textContent = '¥' + (mc.loaded_balance || '30.95');
         const mmEl = document.getElementById('kpi-master-meta');
-        if (mmEl) mmEl.textContent = 主卡  ·  ();
+        if (mmEl) mmEl.textContent = '主卡 ' + (mc.masked_card_no || '10001112****0729') + ' · ' + (mc.holder || '孟祥山') + ' (' + (mc.card_status || '正常卡') + ')';
         const ubEl = document.getElementById('kpi-unloaded-balance');
         if (ubEl) ubEl.textContent = '¥' + (sum.total_unloaded || '0.00');
         const vsEl = document.getElementById('kpi-vice-summary');
-        if (vsEl) vsEl.textContent = ${vcs.length} 张副卡 · 累计划拨 ¥;
+        if (vsEl) vsEl.textContent = vcs.length + ' 张副卡 · 累计划拨 ¥' + (sum.total_allocated_to_vices || '20000.00');
 
-        const vRows = vcs.map((vc, idx) => 
-          <tr>
-            <td style="text-align:center;font-weight:600;color:var(--text-muted);"></td>
-            <td><code></code></td>
-            <td><strong></strong></td>
-            <td><span class="chip"></span></td>
-            <td><span class="chip" style="background:#f1f5f9;color:#64748b;"></span></td>
-            <td style="font-size:12px;color:var(--text-muted);">历史绑定副卡，资金已全部圈存结清</td>
-          </tr>
+        const vRows = vcs.map((vc, idx) =>
+          '<tr>' +
+            '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+            '<td><code>' + vc.card_no + '</code></td>' +
+            '<td><strong>' + vc.holder_name + '</strong></td>' +
+            '<td><span class="chip">' + (vc.card_level_label || '单位副卡') + '</span></td>' +
+            '<td><span class="chip" style="background:#f1f5f9;color:#64748b;">' + vc.card_status + '</span></td>' +
+            '<td style="font-size:12px;color:var(--text-muted);">历史绑定副卡，资金已全部圈存结清</td>' +
+          '</tr>'
         ).join('');
-        document.getElementById('vice-cards-table-wrap').innerHTML = 
-          <table>
-            <thead>
-              <tr>
-                <th style="width:50px;text-align:center;">序号</th>
-                <th>副卡卡号</th>
-                <th>持卡人姓名</th>
-                <th>卡属性</th>
-                <th>当前状态</th>
-                <th>说明</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        ;
+        document.getElementById('vice-cards-table-wrap').innerHTML =
+          '<table>' +
+            '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>副卡卡号</th><th>持卡人姓名</th><th>卡属性</th><th>当前状态</th><th>说明</th></tr></thead>' +
+            '<tbody>' + (vRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;">名下暂无副卡记录</td></tr>') + '</tbody>' +
+          '</table>';
 
-        const aRows = allocs.map((a, idx) => 
-          <tr>
-            <td style="text-align:center;font-weight:600;color:var(--text-muted);"></td>
-            <td class="tabular"></td>
-            <td><code></code></td>
-            <td><span class="chip"></span></td>
-            <td></td>
-            <td class="num" style="font-weight:700;color:var(--brand-blue);">¥</td>
-            <td><span style="color:var(--status-green);font-weight:600;">✓ 已完成插卡圈存</span></td>
-          </tr>
+        const aRows = allocs.map((a, idx) =>
+          '<tr>' +
+            '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+            '<td class="tabular">' + a.time + '</td>' +
+            '<td><code>' + a.card_no + '</code></td>' +
+            '<td><span class="chip">' + a.card_level + '</span></td>' +
+            '<td>' + a.holder_name + '</td>' +
+            '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + a.amount + '</td>' +
+            '<td><span style="color:var(--status-green);font-weight:600;">✓ 已完成插卡圈存</span></td>' +
+          '</tr>'
         ).join('');
-        document.getElementById('allocations-table-wrap').innerHTML = 
-          <table>
-            <thead>
-              <tr>
-                <th style="width:50px;text-align:center;">序号</th>
-                <th>分配下发时间</th>
-                <th>目标卡号</th>
-                <th>卡类型</th>
-                <th>持卡人</th>
-                <th class="num">下发金额 (CNY)</th>
-                <th>圈存状态</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        ;
+        document.getElementById('allocations-table-wrap').innerHTML =
+          '<table>' +
+            '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>分配下发时间</th><th>目标卡号</th><th>卡类型</th><th>持卡人</th><th class="num">下发金额 (CNY)</th><th>圈存状态</th></tr></thead>' +
+            '<tbody>' + (aRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">暂无预分配记录</td></tr>') + '</tbody>' +
+          '</table>';
 
-        setNotice(资金总览已同步：主卡 1 张（已圈存 ¥），副卡  张（历史划拨  笔共 ¥ 全部圈存），在途未圈存资金 ¥0.00。, 'success');
+        setNotice('资金总览已同步：主卡 1 张（已圈存 ¥' + mc.loaded_balance + '），副卡 ' + vcs.length + ' 张（历史划拨 ' + allocs.length + ' 笔共 ¥' + sum.total_allocated_to_vices + ' 全部圈存），在途未圈存资金 ¥0.00。', 'success');
 
         loadRecharges();
       } catch (e) {
         setNotice('加载资金总览异常：' + e.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '刷新资金大盘与副卡流水'; }
       }
     }
 
     async function loadRecharges() {
+      const btn = document.getElementById('btn-refresh-recharge');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中...'; }
       const s = document.getElementById("rc_start").value;
       const e = document.getElementById("rc_end").value;
-      setNotice("正在查询网银充值流水 (" + s + " ~ " + e + ")...");
+
       try {
-        const res = await fetch(`/api/v1/recharges?start_date=${s}&end_date=${e}`);
+        const res = await fetch('/api/v1/recharges?start_date=' + s + '&end_date=' + e);
         const data = await res.json();
-        const rc = data.data?.recharges;
-        if (rc?.code === 390) {
-          setNotice("中国石化会话已超时（HTTP 390），请切换至 Tab 1 重新获取短信验证码登录", "error");
-          document.getElementById("recharge-wrap").innerHTML = `
-            <div style="background:#fee2e2;border:1px solid #fca5a5;padding:12px;border-radius:6px;color:#b91c1c;font-size:13px;">
-              <strong>会话已超时：</strong>中国石化登录态已失效，请在【Tab 1 登录认证门禁】获取短信验证码重新登录后即可查询。
-            </div>
-          `;
-          return;
-        }
-        const list = rc?.list || [];
+        const list = data?.data?.recharges?.list || [];
+
         if (list.length === 0) {
-          setNotice("充值明细查询完成：该时段内无网银充值记录", "info");
-          document.getElementById("recharge-wrap").innerHTML = `
-            <div style="background:#f8fafc;padding:14px;border-radius:6px;border:1px solid #e2e8f0;font-size:13px;color:#475569;line-height:1.6;">
-              <strong>查询区间 (${s} 至 ${e}) 核对结果：</strong><br />
-              • 该区间内无网银直接充值记录。<br />
-              • 常见原因：企业多用户加油卡通常由财务通过<strong>银行对公转账 / 资金池直充</strong>形式直接入账，不产生普通网页端网银支付订单。<br />
-              • 当前主卡实际可用卡账余额：<strong>¥30.95</strong>，卡内已分配未圈存金额：<strong>¥0.00</strong>。
-            </div>
-          `;
+          document.getElementById("recharge-wrap").innerHTML =
+            '<div style="background:#f8fafc;padding:14px;border-radius:6px;border:1px solid #e2e8f0;font-size:13px;color:#475569;line-height:1.6;">' +
+              '<strong>查询区间 (' + s + ' 至 ' + e + ') 核对结果：</strong><br />' +
+              '• 该区间内无网银直接充值记录。<br />' +
+              '• 常见原因：企业多用户加油卡通常由财务通过<strong>银行对公转账 / 资金池直充</strong>形式直接入账。<br />' +
+              '• 当前主卡实际可用卡账余额：<strong>¥30.95</strong>，全卡已分配未圈存金额：<strong>¥0.00</strong>。' +
+            '</div>';
         } else {
-          setNotice("充值明细查询完成：共 " + list.length + " 笔充值记录", "success");
-          const rows = list.map((item, idx) => `
-            <tr>
-              <td>${idx + 1}</td>
-              <td class="tabular">${item.opeTime}</td>
-              <td>${item.nodeTag}</td>
-              <td>${item.advpayType}</td>
-              <td class="num" style="font-weight:700;">¥${(item.amount / 100).toFixed(2)}</td>
-            </tr>
-          `).join("");
-          document.getElementById("recharge-wrap").innerHTML = `
-            <table>
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>充值时间</th>
-                  <th>网点名称</th>
-                  <th>充值方式</th>
-                  <th class="num">充值金额 (CNY)</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          `;
+          const rows = list.map((item, idx) =>
+            '<tr>' +
+              '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+              '<td class="tabular">' + item.opeTime + '</td>' +
+              '<td>' + (item.nodeTag ? item.nodeTag.trim() : '天津充值网点') + '</td>' +
+              '<td><span class="chip">' + (item.advpayType ? item.advpayType.trim() : '微信支付') + '</span></td>' +
+              '<td class="num" style="font-weight:700;color:var(--status-green);">¥' + (item.amount / 100).toFixed(2) + '</td>' +
+            '</tr>'
+          ).join("");
+          document.getElementById("recharge-wrap").innerHTML =
+            '<table>' +
+              '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>充值时间</th><th>网点名称</th><th>充值方式</th><th class="num">充值金额 (CNY)</th></tr></thead>' +
+              '<tbody>' + rows + '</tbody>' +
+            '</table>';
         }
       } catch (err) {
-        setNotice("查询失败：" + err.message, "error");
+        setNotice("查询充值流水失败：" + err.message, "error");
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '查询充值流水'; }
       }
     }
 
-    async function loadYuFenPeiLogs() {
-      setNotice("正在查询预分配下发与圈存流水...");
-      document.getElementById("recharge-wrap").innerHTML = `
-        <div style="background:#f8fafc;padding:14px;border-radius:6px;border:1px solid #e2e8f0;font-size:13px;line-height:1.6;">
-          <strong>预分配与圈存历史核对结论：</strong><br />
-          • 主卡 <code>1000111200000008816</code>（持卡人：张*山）当前已圈存卡内芯片余额：<strong>¥30.95</strong><br />
-          • 当前已分配未圈存金额：<strong>¥0.00</strong>（所有已下发的预分配资金均已在加油站自助机完成插卡圈存，无沉淀资金）<br />
-          • 单位资金账户额度：<strong>¥0.00</strong>，账户名下暂无其他副卡绑定。<br />
-          • 历史消费记录已对应形成 <strong>¥27,819.72</strong> 的数电专票池，今日已为你成功开具 2025-03 与 2026-08 专票合计 <strong>¥15,552.16</strong>。
-        </div>
-      `;
-      setNotice("预分配下发与圈存透视核对完成", "success");
-    }
-
+    // Startup initialization
     syncAuthUi();
     pollSystemStatus();
-    setInterval(pollSystemStatus, 30000);
-    checkRemoteAuth(false);
     loadIssuedInvoices();
+    setInterval(pollSystemStatus, 30000);
+
   </script>
 </body>
 </html>
