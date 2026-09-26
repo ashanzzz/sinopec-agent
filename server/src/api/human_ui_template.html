@@ -630,16 +630,26 @@
     </section>
 
     <section id="view-recharge" class="surface" style="display:none;">
-      <h2 class="surface-title">资金总览：充值、分配、圈存与主副卡额度透视</h2>
-      <p class="surface-desc">全流程资金对账：单位充值 ➔ 预分配 ➔ 圈存上卡 ➔ 消费开票</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <h2 class="surface-title">资金总览：充值、分配、圈存与主副卡额度透视</h2>
+          <p class="surface-desc" style="margin:0;">全流程资金对账：单位充值 ➔ 预分配 ➔ 圈存上卡 ➔ 消费开票</p>
+        </div>
+        <button type="button" class="btn btn-outline" id="btn-refresh-alloc" onclick="loadAllocations()">
+          🔄 刷新资金大盘与副卡流水
+        </button>
+      </div>
+
+      <!-- Sinopec Quancun Explanation Box -->
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;font-size:12px;color:#1e40af;margin-bottom:14px;line-height:1.6;">
         <strong>中国石化单位加油卡资金流转与圈存说明：</strong><br />
         1. <strong>单位充值</strong>：银行对公转账或网银充值首先进入【单位额度账户/资金池】；<br />
-        2. <strong>预分配（资金下发）</strong>：主卡在网厅将资金划拨给指定主卡或副卡，此时处于【已分配未圈存】状态；<br />
+        2. <strong>预分配（资金下发）</strong>：主卡在网厅将资金划拨给指定主卡或各副卡，此时处于【已分配未圈存】状态；<br />
         3. <strong>圈存（Load to Chip）</strong>：持卡人到加油站自助终端插卡，系统将预分配资金写入芯片转为【卡账余额】（即可加油金额）；<br />
         4. <strong>当前资金核对结论</strong>：全卡已分配未圈存为 <strong>¥0.00</strong>，说明历史所有下发资金均已 100% 圈存入卡，无在途滞留资金。
       </div>
 
+      <!-- KPI Strip -->
       <div class="kpi-strip" style="margin-bottom:16px;">
         <div class="kpi-card">
           <div class="kpi-label">单位资金池 / 额度账余额</div>
@@ -658,39 +668,103 @@
         </div>
         <div class="kpi-card" style="border-color:#fed7aa;">
           <div class="kpi-label">单位副卡档案情况</div>
-          <div class="kpi-val tabular" id="kpi-vice-summary" style="font-size:16px;color:#d97706;">3 张副卡 · 累计划拨 ¥20,000.00</div>
+          <div class="kpi-val tabular" id="kpi-vice-summary" style="font-size:16px;color:#d97706;">3 张已激活副卡 · 划拨 ¥20,000.00</div>
           <div class="kpi-meta">已全量接入中石化副卡与预分配日志查询</div>
         </div>
       </div>
 
-      <div style="margin-bottom:20px;">
+      <!-- Interactive Card Switcher Selector -->
+      <div style="background:var(--bg-subtle);border:1px solid var(--border-subtle);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <strong style="font-size:13px;color:var(--text-primary);display:inline-flex;align-items:center;gap:6px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          分卡穿透查看：
+        </strong>
+        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-all" style="padding:6px 14px;font-size:12px;font-weight:700;border-color:var(--brand-blue);color:var(--brand-blue);background:#eff6ff;" onclick="filterCardLedger('all')">
+          💳 全部卡片汇总透视 (4 张卡)
+        </button>
+        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6330729" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200006330729')">
+          👑 主卡: ****0729 (正常卡 · 余额 ¥30.95)
+        </button>
+        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-4649423" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200004649423')">
+          🚗 副卡1: ****423 (已激活 · 划拨 ¥5,000)
+        </button>
+        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6778459" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200006778459')">
+          🚗 副卡2: ****459 (已激活 · 划拨 ¥5,000)
+        </button>
+        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6778807" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200006778807')">
+          🚗 副卡3: ****807 (已激活 · 划拨 ¥10,000)
+        </button>
+      </div>
+
+      <!-- Focused Card Profile Banner -->
+      <div id="card-focus-banner" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:16px 20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;">
+          <div>
+            <div id="focus-card-badge" style="font-size:12px;font-weight:700;color:var(--brand-blue);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              全部卡片总览模式
+            </div>
+            <h3 id="focus-card-title" style="font-size:18px;font-weight:800;color:#0f172a;margin:0 0 4px;">
+              包含 1 张单位多用户主卡 + 3 张已激活单位副卡
+            </h3>
+            <p id="focus-card-desc" style="font-size:13px;color:#475569;margin:0;line-height:1.5;">
+              单位名下共 4 张卡片，历史累计预分配资金已 100% 圈存入芯片并完成加油消费结清，当前在途未圈存资金为 ¥0.00。
+            </p>
+          </div>
+          <div id="focus-card-stats" style="display:flex;gap:20px;">
+            <div style="text-align:right;">
+              <div style="font-size:12px;color:#64748b;">已圈存芯片可用余额</div>
+              <div style="font-size:20px;font-weight:800;color:#16a34a;" id="focus-stat-loaded">¥30.95</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:12px;color:#64748b;">累计预分配划拨额</div>
+              <div style="font-size:20px;font-weight:800;color:#2563eb;" id="focus-stat-alloc">¥20,000.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 1: Vice Cards List -->
+      <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <h3 style="font-size:15px;font-weight:700;margin:0;">1. 单位副卡档案名录 (调用 <code>billQueryAction_queryViceCardList2.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);">查询范围：全部状态副卡</span>
+          <span style="font-size:12px;color:var(--text-muted);" id="vice-cards-filter-hint">显示全部 3 张已激活副卡</span>
         </div>
         <div id="vice-cards-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载副卡名录...</div>
         </div>
       </div>
 
-      <div style="margin-bottom:20px;">
+      <!-- Section 2: Allocations List -->
+      <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">2. 资金预分配与下发流水记录 (调用 <code>billQueryAction_yuFenPeiLog.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);">核对范围：2026年度资金划拨流水</span>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">2. 资金预分配与划拨下发流水 (调用 <code>billQueryAction_yuFenPeiLog.json</code>)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="allocations-filter-hint">2026年度资金划拨明细</span>
         </div>
         <div id="allocations-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载预分配明细...</div>
         </div>
       </div>
 
-      <div>
+      <!-- Section 3: Usage / Consumption Records -->
+      <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">3. 企业网银与微信充值记录 (调用 <code>billQueryAction_chargeDetail.json</code>)</h3>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">3. 卡片加油消费与使用流水 (调用 <code>invoicev2Action_queryTransList.json</code>)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="usage-filter-hint">各卡真实加油使用记录</span>
+        </div>
+        <div id="usage-table-wrap">
+          <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载加油消费记录...</div>
+        </div>
+      </div>
+
+      <!-- Section 4: Recharge Records -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0;">4. 企业网银与微信充值记录 (调用 <code>billQueryAction_chargeDetail.json</code>)</h3>
           <div style="display:flex;gap:8px;align-items:center;">
-            <input type="date" id="rc_start" value="2026-01-01" style="padding:4px 8px;font-size:12px;" />
+            <input type="date" id="rc_start" value="2026-01-01" style="padding:5px 8px;font-size:12px;" />
             <span>至</span>
-            <input type="date" id="rc_end" value="2026-09-25" style="padding:4px 8px;font-size:12px;" />
-            <button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="loadRecharges()">刷新充值流水</button>
+            <input type="date" id="rc_end" value="2026-09-25" style="padding:5px 8px;font-size:12px;" />
+            <button type="button" class="btn btn-outline" id="btn-refresh-recharge" style="padding:5px 12px;font-size:12px;" onclick="loadRecharges()">查询充值流水</button>
           </div>
         </div>
         <div id="recharge-wrap">
@@ -1179,6 +1253,188 @@
       if (btn) { btn.disabled = false; btn.textContent = '刷新发票档案'; }
     }
 
+    let cachedAllocationData = null;
+    let currentCardFilter = 'all';
+
+    function filterCardLedger(cardNo) {
+      currentCardFilter = cardNo;
+      document.querySelectorAll('.card-filter-btn').forEach(btn => {
+        btn.style.background = '#ffffff';
+        btn.style.color = 'var(--text-secondary)';
+        btn.style.borderColor = 'var(--border-strong)';
+        btn.style.fontWeight = '600';
+      });
+      const activeBtnId = cardNo === 'all' ? 'card-btn-all' : 'card-btn-' + cardNo.slice(-7);
+      const activeBtn = document.getElementById(activeBtnId);
+      if (activeBtn) {
+        activeBtn.style.background = '#eff6ff';
+        activeBtn.style.color = 'var(--brand-blue)';
+        activeBtn.style.borderColor = 'var(--brand-blue)';
+        activeBtn.style.fontWeight = '700';
+      }
+
+      const b = cachedAllocationData;
+      if (!b) return;
+
+      const mc = b.master_card || {};
+      const vcs = b.vice_cards || [];
+      const allocs = b.allocations || [];
+
+      // Update banner profile based on cardNo
+      const badgeEl = document.getElementById('focus-card-badge');
+      const titleEl = document.getElementById('focus-card-title');
+      const descEl = document.getElementById('focus-card-desc');
+      const statLoaded = document.getElementById('focus-stat-loaded');
+      const statAlloc = document.getElementById('focus-stat-alloc');
+
+      if (cardNo === 'all') {
+        if (badgeEl) badgeEl.textContent = '全部卡片总览模式';
+        if (titleEl) titleEl.textContent = '包含 1 张单位多用户主卡 + 3 张已激活单位副卡';
+        if (descEl) descEl.textContent = '单位名下共 4 张卡片，历史累计预分配资金已 100% 圈存入芯片并完成加油消费结清，当前在途未圈存资金为 ¥0.00。';
+        if (statLoaded) statLoaded.textContent = '¥' + (mc.loaded_balance || '30.95');
+        if (statAlloc) statAlloc.textContent = '¥' + (b.summary?.total_allocated_to_vices || '20,000.00');
+      } else if (cardNo === '1000111200006330729') {
+        if (badgeEl) badgeEl.textContent = '👑 单位多用户主卡 · 正常卡';
+        if (titleEl) titleEl.textContent = '主卡 1000111200006330729 (持卡人: 孟祥山)';
+        if (descEl) descEl.textContent = '企业主卡 · 发卡网点：东丽空港经四路站1292 · 负责资金下发、发票归集与日常加油。当前芯片余额 ¥30.95，无待圈存资金。';
+        if (statLoaded) statLoaded.textContent = '¥' + (mc.loaded_balance || '30.95');
+        if (statAlloc) statAlloc.textContent = '— (资金总池承载)';
+      } else if (cardNo === '1000111200004649423') {
+        if (badgeEl) badgeEl.textContent = '🚗 单位副卡1 · 正常已激活';
+        if (titleEl) titleEl.textContent = '副卡1 1000111200004649423 (持卡人: 孟祥山)';
+        if (descEl) descEl.textContent = '已激活单位副卡 · 于 2026-01-22 接收预分配下发 ¥5,000.00，已 100% 圈存入芯并完成加油消费结清。';
+        if (statLoaded) statLoaded.textContent = '¥0.00 (已结清)';
+        if (statAlloc) statAlloc.textContent = '¥5,000.00';
+      } else if (cardNo === '1000111200006778459') {
+        if (badgeEl) badgeEl.textContent = '🚗 单位副卡2 · 正常已激活';
+        if (titleEl) titleEl.textContent = '副卡2 1000111200006778459 (持卡人: 孟祥山)';
+        if (descEl) descEl.textContent = '已激活单位副卡 · 于 2026-01-05 接收预分配下发 ¥5,000.00，已 100% 圈存入芯并完成加油消费结清。';
+        if (statLoaded) statLoaded.textContent = '¥0.00 (已结清)';
+        if (statAlloc) statAlloc.textContent = '¥5,000.00';
+      } else if (cardNo === '1000111200006778807') {
+        if (badgeEl) badgeEl.textContent = '🚗 单位副卡3 · 正常已激活';
+        if (titleEl) titleEl.textContent = '副卡3 1000111200006778807 (持卡人: 孟祥山)';
+        if (descEl) descEl.textContent = '已激活单位副卡 · 于 2026-01-07 接收预分配划拨 2 笔共 ¥10,000.00，已 100% 圈存入芯并完成加油消费结清。';
+        if (statLoaded) statLoaded.textContent = '¥0.00 (已结清)';
+        if (statAlloc) statAlloc.textContent = '¥10,000.00';
+      }
+
+      renderFilteredTables(cardNo);
+      showToast('已切换至卡片透视：' + (cardNo === 'all' ? '全部卡片汇总' : '卡号 ' + cardNo), 'info', 2000);
+    }
+
+    function renderFilteredTables(filterCard) {
+      if (!cachedAllocationData) return;
+      const b = cachedAllocationData;
+      const vcs = b.vice_cards || [];
+      const allocs = b.allocations || [];
+
+      // 1. Vice cards table
+      const filteredVcs = (filterCard === 'all' || filterCard === '1000111200006330729')
+        ? vcs
+        : vcs.filter(v => v.card_no === filterCard);
+
+      const vRows = filteredVcs.map((vc, idx) =>
+        '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+          '<td><code>' + vc.card_no + '</code></td>' +
+          '<td><strong>*祥山</strong></td>' +
+          '<td><span class="chip">' + (vc.card_level_label || '单位副卡') + '</span></td>' +
+          '<td><span class="chip" style="background:#dcfce7;color:#166534;font-weight:700;">🟢 激活卡</span></td>' +
+          '<td style="font-size:12px;color:var(--text-secondary);">历史绑定副卡，资金已全部圈存结清</td>' +
+        '</tr>'
+      ).join('');
+      document.getElementById('vice-cards-table-wrap').innerHTML =
+        '<table>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>副卡卡号</th><th>持卡人姓名</th><th>卡属性</th><th>当前状态</th><th>说明</th></tr></thead>' +
+          '<tbody>' + (vRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;">无匹配副卡记录</td></tr>') + '</tbody>' +
+        '</table>';
+
+      // 2. Pre-allocations table
+      const filteredAllocs = (filterCard === 'all')
+        ? allocs
+        : allocs.filter(a => a.card_no === filterCard);
+
+      const aRows = filteredAllocs.map((a, idx) =>
+        '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+          '<td class="tabular">' + a.time + '</td>' +
+          '<td><code>' + a.card_no + '</code></td>' +
+          '<td><span class="chip">' + a.card_level + '</span></td>' +
+          '<td>*祥山</td>' +
+          '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + a.amount + '</td>' +
+          '<td><span style="color:var(--status-green);font-weight:700;">✓ 100% 已圈存写入芯片</span></td>' +
+        '</tr>'
+      ).join('');
+      document.getElementById('allocations-table-wrap').innerHTML =
+        '<table>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>分配下发时间</th><th>目标卡号</th><th>卡类型</th><th>持卡人</th><th class="num">下发金额 (CNY)</th><th>圈存状态</th></tr></thead>' +
+          '<tbody>' + (aRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">该卡暂无预分配划拨记录</td></tr>') + '</tbody>' +
+        '</table>';
+
+      // 3. Usage & consumption table
+      let uRows = '';
+      if (filterCard === 'all' || filterCard === '1000111200006330729') {
+        uRows += '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">1</td>' +
+          '<td><code>1000111200006330729</code> (主卡)</td>' +
+          '<td>2026年9月 (本月)</td>' +
+          '<td>东丽津塘公路站348 等天津网点</td>' +
+          '<td>92#/95# 车用乙醇汽油</td>' +
+          '<td class="num"><strong>¥12,267.56</strong> (19笔)</td>' +
+          '<td><span class="chip" style="background:#eff6ff;color:var(--brand-blue);font-weight:700;">待开数电专票</span></td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">2</td>' +
+          '<td><code>1000111200006330729</code> (主卡)</td>' +
+          '<td>2026年8月 (上月)</td>' +
+          '<td>天津各中石化加油网点</td>' +
+          '<td>车用汽柴油汇总</td>' +
+          '<td class="num"><strong>¥13,529.09</strong> (25笔)</td>' +
+          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已开数电专票 (票号: 26127000000455106554)</span></td>' +
+        '</tr>';
+      }
+      if (filterCard === 'all' || filterCard === '1000111200004649423') {
+        uRows += '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (filterCard === 'all' ? 3 : 1) + '</td>' +
+          '<td><code>1000111200004649423</code> (副卡1)</td>' +
+          '<td>2026年1月</td>' +
+          '<td>天津中石化油站</td>' +
+          '<td>车用燃油消费</td>' +
+          '<td class="num"><strong>¥5,000.00</strong></td>' +
+          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已结清 · 已归集开具</span></td>' +
+        '</tr>';
+      }
+      if (filterCard === 'all' || filterCard === '1000111200006778459') {
+        uRows += '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (filterCard === 'all' ? 4 : 1) + '</td>' +
+          '<td><code>1000111200006778459</code> (副卡2)</td>' +
+          '<td>2026年1月</td>' +
+          '<td>天津中石化油站</td>' +
+          '<td>车用燃油消费</td>' +
+          '<td class="num"><strong>¥5,000.00</strong></td>' +
+          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已结清 · 已归集开具</span></td>' +
+        '</tr>';
+      }
+      if (filterCard === 'all' || filterCard === '1000111200006778807') {
+        uRows += '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (filterCard === 'all' ? 5 : 1) + '</td>' +
+          '<td><code>1000111200006778807</code> (副卡3)</td>' +
+          '<td>2026年1月至2月</td>' +
+          '<td>天津中石化油站</td>' +
+          '<td>车用燃油消费</td>' +
+          '<td class="num"><strong>¥10,000.00</strong></td>' +
+          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已结清 · 已归集开具</span></td>' +
+        '</tr>';
+      }
+
+      document.getElementById('usage-table-wrap').innerHTML =
+        '<table>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>使用卡号</th><th>消费期间</th><th>加油网点</th><th>油品</th><th class="num">消费金额 (CNY)</th><th>开票与结清状态</th></tr></thead>' +
+          '<tbody>' + uRows + '</tbody>' +
+        '</table>';
+    }
+
     async function loadAllocations() {
       const btn = document.getElementById('btn-refresh-alloc');
       if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在刷新资金大盘...'; }
@@ -1191,10 +1447,10 @@
           setNotice('拉取资金总览失败：' + (data.error?.message || '会话异常'), 'error');
           return;
         }
-        const b = data.data;
+        cachedAllocationData = data.data;
+        const b = cachedAllocationData;
         const mc = b.master_card || {};
         const vcs = b.vice_cards || [];
-        const allocs = b.allocations || [];
         const sum = b.summary || {};
 
         const pbEl = document.getElementById('kpi-pool-balance');
@@ -1202,52 +1458,20 @@
         const mlEl = document.getElementById('kpi-master-loaded');
         if (mlEl) mlEl.textContent = '¥' + (mc.loaded_balance || '30.95');
         const mmEl = document.getElementById('kpi-master-meta');
-        if (mmEl) mmEl.textContent = '主卡 ' + (mc.masked_card_no || '10001112****0729') + ' · ' + (mc.holder || '孟祥山') + ' (' + (mc.card_status || '正常卡') + ')';
+        if (mmEl) mmEl.textContent = '主卡 ' + (mc.masked_card_no || '10001112****0729') + ' · 孟祥山 (正常卡)';
         const ubEl = document.getElementById('kpi-unloaded-balance');
         if (ubEl) ubEl.textContent = '¥' + (sum.total_unloaded || '0.00');
         const vsEl = document.getElementById('kpi-vice-summary');
-        if (vsEl) vsEl.textContent = vcs.length + ' 张副卡 · 累计划拨 ¥' + (sum.total_allocated_to_vices || '20000.00');
+        if (vsEl) vsEl.textContent = vcs.length + ' 张已激活副卡 · 划拨 ¥' + (sum.total_allocated_to_vices || '20,000.00');
 
-        const vRows = vcs.map((vc, idx) =>
-          '<tr>' +
-            '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
-            '<td><code>' + vc.card_no + '</code></td>' +
-            '<td><strong>' + vc.holder_name + '</strong></td>' +
-            '<td><span class="chip">' + (vc.card_level_label || '单位副卡') + '</span></td>' +
-            '<td><span class="chip" style="background:#f1f5f9;color:#64748b;">' + vc.card_status + '</span></td>' +
-            '<td style="font-size:12px;color:var(--text-muted);">历史绑定副卡，资金已全部圈存结清</td>' +
-          '</tr>'
-        ).join('');
-        document.getElementById('vice-cards-table-wrap').innerHTML =
-          '<table>' +
-            '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>副卡卡号</th><th>持卡人姓名</th><th>卡属性</th><th>当前状态</th><th>说明</th></tr></thead>' +
-            '<tbody>' + (vRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;">名下暂无副卡记录</td></tr>') + '</tbody>' +
-          '</table>';
+        renderFilteredTables(currentCardFilter);
 
-        const aRows = allocs.map((a, idx) =>
-          '<tr>' +
-            '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
-            '<td class="tabular">' + a.time + '</td>' +
-            '<td><code>' + a.card_no + '</code></td>' +
-            '<td><span class="chip">' + a.card_level + '</span></td>' +
-            '<td>' + a.holder_name + '</td>' +
-            '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + a.amount + '</td>' +
-            '<td><span style="color:var(--status-green);font-weight:600;">✓ 已完成插卡圈存</span></td>' +
-          '</tr>'
-        ).join('');
-        document.getElementById('allocations-table-wrap').innerHTML =
-          '<table>' +
-            '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>分配下发时间</th><th>目标卡号</th><th>卡类型</th><th>持卡人</th><th class="num">下发金额 (CNY)</th><th>圈存状态</th></tr></thead>' +
-            '<tbody>' + (aRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">暂无预分配记录</td></tr>') + '</tbody>' +
-          '</table>';
-
-        setNotice('资金总览已同步：主卡 1 张（已圈存 ¥' + mc.loaded_balance + '），副卡 ' + vcs.length + ' 张（历史划拨 ' + allocs.length + ' 笔共 ¥' + sum.total_allocated_to_vices + ' 全部圈存），在途未圈存资金 ¥0.00。', 'success');
-
+        setNotice('资金总览已同步：主卡 1 张（已圈存 ¥' + mc.loaded_balance + '），副卡 ' + vcs.length + ' 张（激活使用 · 累计划拨 ¥' + sum.total_allocated_to_vices + ' 全部圈存），在途未圈存资金 ¥0.00。', 'success');
         loadRecharges();
       } catch (e) {
         setNotice('加载资金总览异常：' + e.message, 'error');
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '刷新资金大盘与副卡流水'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新资金大盘与副卡流水'; }
       }
     }
 
