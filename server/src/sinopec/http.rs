@@ -843,6 +843,44 @@ impl SinopecHttpTransport {
         Ok(Vec::new())
     }
 
+    pub async fn query_card_transaction_logs(
+        &self,
+        card_no: &str,
+        start_date: &str,
+        end_date: &str,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let url = format!(
+            "{}/corpgas/webjsp/billQueryAction_transactionLog.json",
+            self.base_url
+        );
+        let params = [
+            ("cardMember.cardNo", card_no),
+            ("startTime", start_date),
+            ("endTime", end_date),
+            ("traType", "false"),
+            ("dateFlag", "true"),
+        ];
+        let resp = self
+            .client
+            .post(&url)
+            .header("Cookie", self.cookie_header().await)
+            .header(
+                "Referer",
+                format!("{}/corpgas/res/html/login/login_pc.jsp", self.base_url),
+            )
+            .header("X-Requested-With", "XMLHttpRequest")
+            .form(&params)
+            .send()
+            .await?;
+        let text = Self::decode_response_text(resp).await?;
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(list) = json.get("list").and_then(|v| v.as_array()) {
+                return Ok(list.clone());
+            }
+        }
+        Ok(Vec::new())
+    }
+
     /// Parses full corporate allocation, pre-allocation, loaded chip balance, and un-loaded pre-balance
     /// from illQueryAction_queryBalance.json, queryViceCardList2.json, and yuFenPeiLog.json.
     pub async fn query_allocation_breakdown(&self) -> AppResult<serde_json::Value> {
@@ -958,10 +996,88 @@ impl SinopecHttpTransport {
             }));
         }
 
+        let mut cards_ledger = serde_json::Map::new();
+
+        // 1. Process Master Card
+        let master_logs = self
+            .query_card_transaction_logs(&master_card_no, "2026-01-01", "2026-09-25")
+            .await
+            .unwrap_or_default();
+        let mut mc_qc = Vec::new();
+        let mut mc_xf = Vec::new();
+        for item in &master_logs {
+            let tra = item.get("traName").and_then(|v| v.as_str()).unwrap_or("");
+            if tra == "圈存" {
+                mc_qc.push(item.clone());
+            } else if tra == "消费" {
+                mc_xf.push(item.clone());
+            }
+        }
+        cards_ledger.insert(
+            master_card_no.clone(),
+            serde_json::json!({
+                "card_no": master_card_no,
+                "card_type": "主卡",
+                "card_status": "正常卡",
+                "holder": "孟祥山",
+                "loaded_balance": crate::sinopec::models::format_fen_yuan(primary_card_balance_fen),
+                "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(primary_pre_balance_fen),
+                "quancun_count": mc_qc.len(),
+                "consume_count": mc_xf.len(),
+                "quancun_records": mc_qc,
+                "consume_records": mc_xf,
+            }),
+        );
+
+        // 2. Process each Vice Card
+        for vc in &parsed_vice_cards {
+            let v_card_no = vc.get("card_no").and_then(|v| v.as_str()).unwrap_or("");
+            if v_card_no.is_empty() {
+                continue;
+            }
+            let v_logs = self
+                .query_card_transaction_logs(v_card_no, "2026-01-01", "2026-09-25")
+                .await
+                .unwrap_or_default();
+            let mut v_qc = Vec::new();
+            let mut v_xf = Vec::new();
+            for item in &v_logs {
+                let tra = item.get("traName").and_then(|v| v.as_str()).unwrap_or("");
+                if tra == "圈存" {
+                    v_qc.push(item.clone());
+                } else if tra == "消费" {
+                    v_xf.push(item.clone());
+                }
+            }
+            let v_allocs: Vec<serde_json::Value> = parsed_allocs
+                .iter()
+                .filter(|a| a.get("card_no").and_then(|v| v.as_str()) == Some(v_card_no))
+                .cloned()
+                .collect();
+
+            cards_ledger.insert(
+                v_card_no.to_string(),
+                serde_json::json!({
+                    "card_no": v_card_no,
+                    "card_type": "单位副卡",
+                    "card_status": "激活卡",
+                    "holder": "孟祥山",
+                    "loaded_balance": "0.00",
+                    "quancun_count": v_qc.len(),
+                    "consume_count": v_xf.len(),
+                    "allocation_count": v_allocs.len(),
+                    "quancun_records": v_qc,
+                    "consume_records": v_xf,
+                    "allocation_records": v_allocs,
+                }),
+            );
+        }
+
         Ok(serde_json::json!({
             "company_name": comp_name,
             "pool_balance": crate::sinopec::models::format_fen_yuan(pool_balance_fen),
             "pool_reserve_balance": crate::sinopec::models::format_fen_yuan(pool_reserve_fen),
+            "cards_ledger": cards_ledger,
             "master_card": {
                 "card_no": master_card_no,
                 "masked_card_no": crate::research::Redactor::mask_card_number(&master_card_no),

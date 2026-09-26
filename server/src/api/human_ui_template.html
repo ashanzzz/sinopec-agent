@@ -745,10 +745,21 @@
         </div>
       </div>
 
+      <!-- Section 2.5: Quancun Load Records -->
+      <div style="margin-bottom:24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0;">3. 该卡专属：油站插卡圈存记录 (调用 <code>billQueryAction_transactionLog.json</code>)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="quancun-filter-hint">预分配资金写入芯片明细</span>
+        </div>
+        <div id="quancun-table-wrap">
+          <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载圈存明细...</div>
+        </div>
+      </div>
+
       <!-- Section 3: Usage / Consumption Records -->
       <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">3. 卡片加油消费与使用流水 (调用 <code>invoicev2Action_queryTransList.json</code>)</h3>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">4. 该卡专属：加油消费与使用流水 (调用 <code>invoicev2Action_queryTransList.json</code>)</h3>
           <span style="font-size:12px;color:var(--text-muted);" id="usage-filter-hint">各卡真实加油使用记录</span>
         </div>
         <div id="usage-table-wrap">
@@ -759,7 +770,7 @@
       <!-- Section 4: Recharge Records -->
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">4. 企业网银与微信充值记录 (调用 <code>billQueryAction_chargeDetail.json</code>)</h3>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">5. 企业网银与微信充值记录 (调用 <code>billQueryAction_chargeDetail.json</code>)</h3>
           <div style="display:flex;gap:8px;align-items:center;">
             <input type="date" id="rc_start" value="2026-01-01" style="padding:5px 8px;font-size:12px;" />
             <span>至</span>
@@ -1328,6 +1339,7 @@
       const b = cachedAllocationData;
       const vcs = b.vice_cards || [];
       const allocs = b.allocations || [];
+      const ledger = b.cards_ledger || {};
 
       // 1. Vice cards table
       const filteredVcs = (filterCard === 'all' || filterCard === '1000111200006330729')
@@ -1372,66 +1384,74 @@
           '<tbody>' + (aRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">该卡暂无预分配划拨记录</td></tr>') + '</tbody>' +
         '</table>';
 
-      // 3. Usage & consumption table
-      let uRows = '';
-      if (filterCard === 'all' || filterCard === '1000111200006330729') {
-        uRows += '<tr>' +
-          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">1</td>' +
-          '<td><code>1000111200006330729</code> (主卡)</td>' +
-          '<td>2026年9月 (本月)</td>' +
-          '<td>东丽津塘公路站348 等天津网点</td>' +
-          '<td>92#/95# 车用乙醇汽油</td>' +
-          '<td class="num"><strong>¥12,267.56</strong> (19笔)</td>' +
-          '<td><span class="chip" style="background:#eff6ff;color:var(--brand-blue);font-weight:700;">待开数电专票</span></td>' +
-        '</tr>' +
-        '<tr>' +
-          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">2</td>' +
-          '<td><code>1000111200006330729</code> (主卡)</td>' +
-          '<td>2026年8月 (上月)</td>' +
-          '<td>天津各中石化加油网点</td>' +
-          '<td>车用汽柴油汇总</td>' +
-          '<td class="num"><strong>¥13,529.09</strong> (25笔)</td>' +
-          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已开数电专票 (票号: 26127000000455106554)</span></td>' +
-        '</tr>';
+      // 3. Quancun (Load to Chip) records table
+      let qcList = [];
+      if (filterCard === 'all') {
+        Object.keys(ledger).forEach(c => {
+          (ledger[c].quancun_records || []).forEach(r => qcList.push({ card_no: c, ...r }));
+        });
+      } else if (ledger[filterCard]) {
+        (ledger[filterCard].quancun_records || []).forEach(r => qcList.push({ card_no: filterCard, ...r }));
       }
-      if (filterCard === 'all' || filterCard === '1000111200004649423') {
-        uRows += '<tr>' +
-          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (filterCard === 'all' ? 3 : 1) + '</td>' +
-          '<td><code>1000111200004649423</code> (副卡1)</td>' +
-          '<td>2026年1月</td>' +
-          '<td>天津中石化油站</td>' +
-          '<td>车用燃油消费</td>' +
-          '<td class="num"><strong>¥5,000.00</strong></td>' +
-          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已结清 · 已归集开具</span></td>' +
+      qcList.sort((x, y) => (y.opeTime || '').localeCompare(x.opeTime || ''));
+
+      const qcRows = qcList.map((item, idx) => {
+        const amt = (parseFloat(item.amount || 0) / 100).toFixed(2);
+        const bal = (parseFloat(item.balance || 0) / 100).toFixed(2);
+        const cno = item.card_no || filterCard;
+        const tag = cno === '1000111200006330729' ? '主卡' : '副卡';
+        return '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+          '<td class="tabular">' + item.opeTime + '</td>' +
+          '<td><code>' + cno + '</code> <span class="chip">' + tag + '</span></td>' +
+          '<td>' + (item.nodeTag ? item.nodeTag.trim() : '天津油站圈存终端') + '</td>' +
+          '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + amt + '</td>' +
+          '<td class="num tabular">¥' + bal + '</td>' +
+          '<td><span style="color:var(--status-green);font-weight:600;">✓ 芯片已写入</span></td>' +
         '</tr>';
+      }).join('');
+
+      document.getElementById('quancun-table-wrap').innerHTML =
+        '<table>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>圈存完成时间</th><th>圈存卡号</th><th>圈存加油站网点</th><th class="num">圈存写入金额 (CNY)</th><th class="num">圈存后芯片余额</th><th>状态</th></tr></thead>' +
+          '<tbody>' + (qcRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">该卡暂无圈存流水记录</td></tr>') + '</tbody>' +
+        '</table>';
+
+      // 4. Fuel consumption records table
+      let xfList = [];
+      if (filterCard === 'all') {
+        Object.keys(ledger).forEach(c => {
+          (ledger[c].consume_records || []).forEach(r => xfList.push({ card_no: c, ...r }));
+        });
+      } else if (ledger[filterCard]) {
+        (ledger[filterCard].consume_records || []).forEach(r => xfList.push({ card_no: filterCard, ...r }));
       }
-      if (filterCard === 'all' || filterCard === '1000111200006778459') {
-        uRows += '<tr>' +
-          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (filterCard === 'all' ? 4 : 1) + '</td>' +
-          '<td><code>1000111200006778459</code> (副卡2)</td>' +
-          '<td>2026年1月</td>' +
-          '<td>天津中石化油站</td>' +
-          '<td>车用燃油消费</td>' +
-          '<td class="num"><strong>¥5,000.00</strong></td>' +
-          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已结清 · 已归集开具</span></td>' +
+      xfList.sort((x, y) => (y.opeTime || '').localeCompare(x.opeTime || ''));
+
+      const xfRows = xfList.slice(0, 50).map((item, idx) => {
+        const amt = (parseFloat(item.amount || 0) / 100).toFixed(2);
+        const litre = (parseFloat(item.litre || 0) / 100).toFixed(2);
+        const price = (parseFloat(item.price || 0) / 100).toFixed(2);
+        const bal = (parseFloat(item.balance || 0) / 100).toFixed(2);
+        const cno = item.card_no || filterCard;
+        const tag = cno === '1000111200006330729' ? '主卡' : '副卡';
+        return '<tr>' +
+          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
+          '<td class="tabular">' + item.opeTime + '</td>' +
+          '<td><code>' + cno + '</code> <span class="chip">' + tag + '</span></td>' +
+          '<td>' + (item.nodeTag ? item.nodeTag.trim() : '天津中石化油站') + '</td>' +
+          '<td>' + (item.oilName ? item.oilName.trim() : '车用燃油') + '</td>' +
+          '<td class="num tabular">' + litre + ' L</td>' +
+          '<td class="num tabular">¥' + price + '</td>' +
+          '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + amt + '</td>' +
+          '<td class="num tabular">¥' + bal + '</td>' +
         '</tr>';
-      }
-      if (filterCard === 'all' || filterCard === '1000111200006778807') {
-        uRows += '<tr>' +
-          '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (filterCard === 'all' ? 5 : 1) + '</td>' +
-          '<td><code>1000111200006778807</code> (副卡3)</td>' +
-          '<td>2026年1月至2月</td>' +
-          '<td>天津中石化油站</td>' +
-          '<td>车用燃油消费</td>' +
-          '<td class="num"><strong>¥10,000.00</strong></td>' +
-          '<td><span class="chip" style="background:#f0fdf4;color:#166534;font-weight:700;">✓ 已结清 · 已归集开具</span></td>' +
-        '</tr>';
-      }
+      }).join('');
 
       document.getElementById('usage-table-wrap').innerHTML =
         '<table>' +
-          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>使用卡号</th><th>消费期间</th><th>加油网点</th><th>油品</th><th class="num">消费金额 (CNY)</th><th>开票与结清状态</th></tr></thead>' +
-          '<tbody>' + uRows + '</tbody>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>消费时间</th><th>加油卡号</th><th>加油站网点</th><th>油品名称</th><th class="num">加油升数</th><th class="num">单价</th><th class="num">扣款金额 (CNY)</th><th class="num">卡内剩余余额</th></tr></thead>' +
+          '<tbody>' + (xfRows || '<tr><td colspan="9" style="text-align:center;color:#64748b;">该卡暂无加油消费流水记录</td></tr>') + '</tbody>' +
         '</table>';
     }
 
