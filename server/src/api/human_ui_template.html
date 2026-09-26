@@ -255,16 +255,12 @@
       z-index: 50;
     }
   
-    body.not-logged-in #view-invoice,
-    body.not-logged-in #view-history,
-    body.not-logged-in #view-recharge,
     body.not-logged-in #kpi-strip {
-      display: none !important;
+      display: none;
     }
-    body.not-logged-in .nav-item:not(#nav-login) {
-      opacity: 0.3 !important;
-      cursor: not-allowed !important;
-      pointer-events: none !important;
+    .nav-item.disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
 
   </style>
@@ -572,24 +568,27 @@
       const kpi = document.getElementById('kpi-strip');
 
       if (isLoggedIn) {
+        document.body.classList.remove('not-logged-in');
         pill.className = 'auth-pill online';
         dot.className = 'dot online';
-        txt.textContent = '已登录在线 · 示例机械加工有限公司';
+        txt.textContent = '已登录在线 · 天津祺富机械加工有限公司';
         kpi.style.display = 'grid';
         ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
-          document.getElementById(id).classList.remove('disabled');
+          const el = document.getElementById(id);
+          if (el) el.classList.remove('disabled');
         });
         document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'none');
       } else {
+        document.body.classList.add('not-logged-in');
         pill.className = 'auth-pill locked';
         dot.className = 'dot locked';
         txt.textContent = '未登录门禁 · 请先完成短信验证解锁';
         kpi.style.display = 'none';
         ['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
-          document.getElementById(id).classList.add('disabled');
+          const el = document.getElementById(id);
+          if (el) el.classList.add('disabled');
         });
         document.querySelectorAll('.lock-icon').forEach(el => el.style.display = 'inline');
-        activeTab = 'login';
       }
 
       ['login', 'invoice', 'history', 'recharge'].forEach(t => {
@@ -661,9 +660,10 @@
         const data = await res.json();
         if (data.ok && data.data && data.data.verified) {
           isLoggedIn = true;
+          document.body.classList.remove('not-logged-in');
           if (activeTab === 'login') activeTab = 'invoice';
           syncAuthUi();
-          setNotice('中国石化单位网厅会话在线（已通过 billQueryAction_queryBalance.json 实名校验），全部业务功能已解锁！', 'success');
+          setNotice('中国石化单位网厅会话在线（已通过实名校验），全部业务功能已解锁！', 'success');
           if (activeTab === 'invoice') queryUninvoiced();
         } else {
           isLoggedIn = false;
@@ -908,6 +908,7 @@
     }
 
     syncAuthUi();
+    checkRemoteAuth(false);
     loadIssuedInvoices();
   </script>
 </body>

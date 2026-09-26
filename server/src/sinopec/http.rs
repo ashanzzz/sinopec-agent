@@ -464,7 +464,7 @@ impl SinopecHttpTransport {
                 }
             }
         }
-        Ok("1000111200000008816".to_string())
+        Ok("1000111200006330729".to_string())
     }
 
     /// Calls `POST /corpgas/webjsp/invoicev2Action_queryTransList.json` via POST form body.
