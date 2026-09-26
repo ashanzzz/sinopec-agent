@@ -688,20 +688,21 @@
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <div>
           <h2 class="surface-title">资金总览：充值、分配、圈存与主副卡额度透视</h2>
-          <p class="surface-desc" style="margin:0;">全流程资金对账：单位充值 ➔ 预分配 ➔ 圈存上卡 ➔ 消费开票</p>
+          <p class="surface-desc" style="margin:0;">全流程资金闭环对账：企业充值入总账 ➔ 主卡预分配划拨 ➔ 油站插卡圈存 ➔ 刷卡加油消费 ➔ 开具数电发票</p>
         </div>
         <button type="button" class="btn btn-outline" id="btn-refresh-alloc" onclick="loadAllocations()">
-          🔄 刷新资金大盘与副卡流水
+          🔄 刷新资金大盘与各卡流水
         </button>
       </div>
 
       <!-- Sinopec Quancun Explanation Box -->
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;font-size:12px;color:#1e40af;margin-bottom:14px;line-height:1.6;">
-        <strong>中国石化单位加油卡资金流转与圈存说明：</strong><br />
-        1. <strong>单位充值</strong>：银行对公转账或网银充值首先进入【单位额度账户/资金池】；<br />
-        2. <strong>预分配（资金下发）</strong>：主卡在网厅将资金划拨给指定主卡或各副卡，此时处于【已分配未圈存】状态；<br />
-        3. <strong>圈存（Load to Chip）</strong>：持卡人到加油站自助终端插卡，系统将预分配资金写入芯片转为【卡账余额】（即可加油金额）；<br />
-        4. <strong>当前资金核对结论</strong>：全卡已分配未圈存为 <strong>¥0.00</strong>，说明历史所有下发资金均已 100% 圈存入卡，无在途滞留资金。
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;font-size:12px;color:#1e40af;margin-bottom:16px;line-height:1.6;">
+        <strong>中国石化单位加油卡标准资金流转顺序：</strong><br />
+        <strong>第 1 步【企业充值】</strong>：网银对公充值进入单位总账资金池；<br />
+        <strong>第 2 步【预分配划拨】</strong>：主卡在网厅划拨指定金额至主卡或各副卡（此时为「已分配未圈存」在途状态）；<br />
+        <strong>第 3 步【油站插卡圈存】</strong>：持卡人到油站自助终端插卡，资金写入 IC 芯片转为「卡账余额」（即可刷卡加油金额）；<br />
+        <strong>第 4 步【加油消费结清】</strong>：油枪刷卡扣款，系统生成消费流水；<br />
+        <strong>当前财务核对结论</strong>：全卡已分配未圈存金额为 <strong>¥0.00</strong>，说明历史所有下发资金均已 100% 圈存入芯并用于加油结清，无任何沉淀或滞留资金！
       </div>
 
       <!-- KPI Strip -->
@@ -712,14 +713,14 @@
           <div class="kpi-meta">单位总账户当前未划拨给卡片的在途资金</div>
         </div>
         <div class="kpi-card" style="border-color:#93c5fd;">
-          <div class="kpi-label">主卡已圈存卡内余额 (可直接加油)</div>
+          <div class="kpi-label">主卡已圈存芯片余额 (可直接加油)</div>
           <div class="kpi-val tabular" id="kpi-master-loaded" style="color:#2563eb;">¥30.95</div>
           <div class="kpi-meta" id="kpi-master-meta">主卡 10001112****0729 · 孟祥山 (正常卡)</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">全卡已分配未圈存金额 (待圈存)</div>
+          <div class="kpi-label">全卡在途未圈存金额 (待圈存)</div>
           <div class="kpi-val tabular" id="kpi-unloaded-balance" style="color:#16a34a;">¥0.00</div>
-          <div class="kpi-meta">全卡圈存完成率 100%，无在途未圈存资金</div>
+          <div class="kpi-meta">全卡圈存完成率 100%，无滞留未圈存资金</div>
         </div>
         <div class="kpi-card" style="border-color:#fed7aa;">
           <div class="kpi-label">单位副卡档案情况</div>
@@ -728,27 +729,50 @@
         </div>
       </div>
 
-      <!-- Interactive Card Switcher Selector -->
-      <div style="background:var(--bg-subtle);border:1px solid var(--border-subtle);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <!-- Part 1: Capital Inflow / Recharge Records -->
+      <div style="background:#ffffff;border:1px solid var(--border-subtle);border-radius:8px;padding:16px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+          <div>
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 2px;">
+              阶段一：企业充值入账流水 (资金源头 · 累计入账 ¥124,000.00)
+            </h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">调用 <code>billQueryAction_chargeDetail.json</code> 查询微信及网银充值入账明细</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="date" id="rc_start" value="2026-01-01" style="padding:4px 8px;font-size:12px;" />
+            <span>至</span>
+            <input type="date" id="rc_end" value="2026-09-25" style="padding:4px 8px;font-size:12px;" />
+            <button type="button" class="btn btn-outline" id="btn-refresh-recharge" style="padding:4px 10px;font-size:12px;" onclick="loadRecharges()">刷新充值流水</button>
+          </div>
+        </div>
+        <div id="recharge-wrap">
+          <div style="padding:12px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载充值流水...</div>
+        </div>
+      </div>
+
+      <!-- Part 2: Interactive Card Switcher Selector -->
+      <div style="background:var(--bg-subtle);border:1px solid var(--border-subtle);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <strong style="font-size:13px;color:var(--text-primary);display:inline-flex;align-items:center;gap:6px;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
           分卡穿透查看：
         </strong>
-        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-all" style="padding:6px 14px;font-size:12px;font-weight:700;border-color:var(--brand-blue);color:var(--brand-blue);background:#eff6ff;" onclick="filterCardLedger('all')">
-          💳 全部卡片汇总透视 (4 张卡)
-        </button>
-        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6330729" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200006330729')">
-          👑 主卡: ****0729 (正常卡 · 余额 ¥30.95)
-        </button>
-        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-4649423" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200004649423')">
-          🚗 副卡1: ****423 (已激活 · 划拨 ¥5,000)
-        </button>
-        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6778459" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200006778459')">
-          🚗 副卡2: ****459 (已激活 · 划拨 ¥5,000)
-        </button>
-        <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6778807" style="padding:6px 14px;font-size:12px;" onclick="filterCardLedger('1000111200006778807')">
-          🚗 副卡3: ****807 (已激活 · 划拨 ¥10,000)
-        </button>
+        <div id="card-filter-buttons-bar" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-all" style="padding:5px 12px;font-size:12px;font-weight:700;border-color:var(--brand-blue);color:var(--brand-blue);background:#eff6ff;" onclick="filterCardLedger('all')">
+            💳 全部卡片汇总透视 (4 张卡)
+          </button>
+          <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6330729" style="padding:5px 12px;font-size:12px;" onclick="filterCardLedger('1000111200006330729')">
+            👑 主卡: ****0729 (正常卡 · 余额 ¥30.95)
+          </button>
+          <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-4649423" style="padding:5px 12px;font-size:12px;" onclick="filterCardLedger('1000111200004649423')">
+            🚗 副卡1: ****423 (已激活 · 划拨 ¥5,000)
+          </button>
+          <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6778459" style="padding:5px 12px;font-size:12px;" onclick="filterCardLedger('1000111200006778459')">
+            🚗 副卡2: ****459 (已激活 · 划拨 ¥5,000)
+          </button>
+          <button type="button" class="btn btn-outline card-filter-btn" id="card-btn-6778807" style="padding:5px 12px;font-size:12px;" onclick="filterCardLedger('1000111200006778807')">
+            🚗 副卡3: ****807 (已激活 · 划拨 ¥10,000)
+          </button>
+        </div>
       </div>
 
       <!-- Focused Card Profile Banner -->
@@ -778,63 +802,47 @@
         </div>
       </div>
 
-      <!-- Section 1: Vice Cards List -->
+      <!-- Part 3: Vice Cards Registry -->
       <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">1. 单位副卡档案名录 (调用 <code>billQueryAction_queryViceCardList2.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);" id="vice-cards-filter-hint">显示全部 3 张已激活副卡</span>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">阶段二：单位副卡档案名录 (调用 <code>billQueryAction_queryViceCardList2.json</code>)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="vice-cards-filter-hint">全部 3 张已激活副卡档案</span>
         </div>
         <div id="vice-cards-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载副卡名录...</div>
         </div>
       </div>
 
-      <!-- Section 2: Allocations List -->
+      <!-- Part 4: Allocations Stream -->
       <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">2. 资金预分配与划拨下发流水 (调用 <code>billQueryAction_yuFenPeiLog.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);" id="allocations-filter-hint">2026年度资金划拨明细</span>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">阶段三：预分配划拨下发流水 (调用 <code>billQueryAction_yuFenPeiLog.json</code>)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="allocations-filter-hint">主卡向副卡资金划拨记录</span>
         </div>
         <div id="allocations-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载预分配明细...</div>
         </div>
       </div>
 
-      <!-- Section 2.5: Quancun Load Records -->
+      <!-- Part 5: Quancun Stream -->
       <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">3. 该卡专属：油站插卡圈存记录 (调用 <code>billQueryAction_transactionLog.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);" id="quancun-filter-hint">预分配资金写入芯片明细</span>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">阶段四：油站插卡圈存记录 (调用 <code>billQueryAction_transactionLog.json</code> · 圈存)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="quancun-filter-hint">下发资金写入 IC 芯片流水</span>
         </div>
         <div id="quancun-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载圈存明细...</div>
         </div>
       </div>
 
-      <!-- Section 3: Usage / Consumption Records -->
+      <!-- Part 6: Fuel Consumption Stream -->
       <div style="margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">4. 该卡专属：加油消费与使用流水 (调用 <code>invoicev2Action_queryTransList.json</code>)</h3>
-          <span style="font-size:12px;color:var(--text-muted);" id="usage-filter-hint">各卡真实加油使用记录</span>
+          <h3 style="font-size:15px;font-weight:700;margin:0;">阶段五：加油消费与刷卡扣款流水 (调用 <code>billQueryAction_transactionLog.json</code> · 消费)</h3>
+          <span style="font-size:12px;color:var(--text-muted);" id="usage-filter-hint">实际加油消费与专票结清记录</span>
         </div>
         <div id="usage-table-wrap">
           <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载加油消费记录...</div>
-        </div>
-      </div>
-
-      <!-- Section 4: Recharge Records -->
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
-          <h3 style="font-size:15px;font-weight:700;margin:0;">5. 企业网银与微信充值记录 (调用 <code>billQueryAction_chargeDetail.json</code>)</h3>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="date" id="rc_start" value="2026-01-01" style="padding:5px 8px;font-size:12px;" />
-            <span>至</span>
-            <input type="date" id="rc_end" value="2026-09-25" style="padding:5px 8px;font-size:12px;" />
-            <button type="button" class="btn btn-outline" id="btn-refresh-recharge" style="padding:5px 12px;font-size:12px;" onclick="loadRecharges()">查询充值流水</button>
-          </div>
-        </div>
-        <div id="recharge-wrap">
-          <div style="padding:14px;background:var(--bg-subtle);border-radius:6px;color:var(--text-muted);">正在加载充值流水...</div>
         </div>
       </div>
     </section>
@@ -1370,7 +1378,7 @@
       try {
         const res = await fetch('/api/v1/invoices');
         const data = await res.json();
-        if (data.ok && data.data && data.data.length > 2) {
+        if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
           list = data.data;
         }
       } catch (e) {}
@@ -1480,7 +1488,7 @@
         '<tr>' +
           '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
           '<td><code>' + vc.card_no + '</code></td>' +
-          '<td><strong>*祥山</strong></td>' +
+          '<td><strong>孟祥山</strong></td>' +
           '<td><span class="chip">' + (vc.card_level_label || '单位副卡') + '</span></td>' +
           '<td><span class="chip" style="background:#dcfce7;color:#166534;font-weight:700;">🟢 激活卡</span></td>' +
           '<td style="font-size:12px;color:var(--text-secondary);">历史绑定副卡，资金已全部圈存结清</td>' +
@@ -1492,25 +1500,36 @@
           '<tbody>' + (vRows || '<tr><td colspan="6" style="text-align:center;color:#64748b;">无匹配副卡记录</td></tr>') + '</tbody>' +
         '</table>';
 
-      // 2. Pre-allocations table
-      const filteredAllocs = (filterCard === 'all')
-        ? allocs
-        : allocs.filter(a => a.card_no === filterCard);
+      // 2. Pre-allocations table (Master card shows all outgoing allocations it dispatched!)
+      let filteredAllocs = allocs;
+      let allocHint = '2026年度资金划拨明细';
+      if (filterCard === '1000111200006330729') {
+        filteredAllocs = allocs;
+        allocHint = '主卡向名下各副卡划拨下发的资金流水 (共 4 笔 ¥20,000.00)';
+      } else if (filterCard !== 'all') {
+        filteredAllocs = allocs.filter(a => a.card_no === filterCard);
+        allocHint = '该副卡收到的预分配划拨下发记录';
+      }
+      const hintEl = document.getElementById('allocations-filter-hint');
+      if (hintEl) hintEl.textContent = allocHint;
 
-      const aRows = filteredAllocs.map((a, idx) =>
-        '<tr>' +
+      const aRows = filteredAllocs.map((a, idx) => {
+        const typeLabel = (filterCard === '1000111200006330729')
+          ? '<span class="chip" style="background:#eff6ff;color:var(--brand-blue);">主卡划拨 ➔ 副卡</span>'
+          : '<span class="chip">单位副卡接收</span>';
+        return '<tr>' +
           '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
           '<td class="tabular">' + a.time + '</td>' +
           '<td><code>' + a.card_no + '</code></td>' +
-          '<td><span class="chip">' + a.card_level + '</span></td>' +
-          '<td>*祥山</td>' +
+          '<td>' + typeLabel + '</td>' +
+          '<td>孟祥山</td>' +
           '<td class="num" style="font-weight:700;color:var(--brand-blue);">¥' + a.amount + '</td>' +
           '<td><span style="color:var(--status-green);font-weight:700;">✓ 100% 已圈存写入芯片</span></td>' +
-        '</tr>'
-      ).join('');
+        '</tr>';
+      }).join('');
       document.getElementById('allocations-table-wrap').innerHTML =
         '<table>' +
-          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>分配下发时间</th><th>目标卡号</th><th>卡类型</th><th>持卡人</th><th class="num">下发金额 (CNY)</th><th>圈存状态</th></tr></thead>' +
+          '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>分配下发时间</th><th>目标卡号</th><th>划拨属性</th><th>持卡人</th><th class="num">下发金额 (CNY)</th><th>圈存状态</th></tr></thead>' +
           '<tbody>' + (aRows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">该卡暂无预分配划拨记录</td></tr>') + '</tbody>' +
         '</table>';
 
