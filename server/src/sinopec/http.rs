@@ -266,7 +266,7 @@ impl SinopecHttpTransport {
         }
     }
 
-    fn load_cookies_from_disk(path: &PathBuf) -> HashMap<String, String> {
+    pub fn load_cookies_from_disk(path: &PathBuf) -> HashMap<String, String> {
         if !path.exists() {
             return HashMap::new();
         }

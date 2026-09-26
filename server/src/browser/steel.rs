@@ -441,15 +441,62 @@ impl BrowserDriver for SteelBrowserDriver {
 
     async fn navigate(&self, url: &str) -> AppResult<BrowserSnapshot> {
         let session = self.create_session().await?;
+
+        // 1. Check if authenticated cookies exist on disk, and inject them into Chromium via CDP
+        let cookie_file = std::path::Path::new("/data/auth/sinopec_cookies.json");
+        let local_cookie_file = std::path::Path::new("data/auth/sinopec_cookies.json");
+        let path_to_use = if cookie_file.exists() {
+            cookie_file
+        } else {
+            local_cookie_file
+        };
+        let disk_cookies = crate::sinopec::http::SinopecHttpTransport::load_cookies_from_disk(
+            &path_to_use.to_path_buf(),
+        );
+        let has_authenticated_cookies =
+            disk_cookies.contains_key("JSESSIONID") && disk_cookies.contains_key("LASTMSG");
+
+        if !disk_cookies.is_empty() {
+            let mut cookie_list = Vec::new();
+            for (k, v) in &disk_cookies {
+                cookie_list.push(serde_json::json!({
+                    "name": k,
+                    "value": v,
+                    "domain": "www.sinopecsales.com",
+                    "path": "/"
+                }));
+                cookie_list.push(serde_json::json!({
+                    "name": k,
+                    "value": v,
+                    "domain": ".sinopecsales.com",
+                    "path": "/"
+                }));
+            }
+            let _ = self
+                .run_cdp_command(
+                    "Network.setCookies",
+                    serde_json::json!({ "cookies": cookie_list }),
+                )
+                .await;
+        }
+
+        // 2. Navigate to URL
         let _ = self
             .run_cdp_command("Page.navigate", serde_json::json!({ "url": url }))
             .await?;
-        tokio::time::sleep(Duration::from_millis(1200)).await;
-        if url.contains("default_corp.html") || url.contains("sinopecsales.com") {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        // 3. If authenticated cookies exist, hide login popup so logged-in portal is shown!
+        if has_authenticated_cookies {
+            let _ = self
+                .evaluate("if (typeof $ === 'function') { $('#mengbanbg,#login_win').hide(); }")
+                .await;
+        } else if url.contains("default_corp.html") || url.contains("sinopecsales.com") {
             let _ = self
                 .evaluate("if (typeof showBg === 'function') { showBg('corp'); }")
                 .await;
         }
+
         let page_url = self.get_url().await.unwrap_or_else(|_| url.to_string());
         let title = self
             .get_title()
