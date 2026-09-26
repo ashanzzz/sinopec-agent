@@ -24,7 +24,7 @@ pub async fn render_human_action_page(
     let id_number = stored
         .id_number
         .unwrap_or_else(|| "120101199001011234".to_string());
-    let holder_name = stored.holder_name.unwrap_or_else(|| "张*山".to_string());
+    let holder_name = stored.holder_name.unwrap_or_else(|| "张三".to_string());
     let phone = stored.phone.unwrap_or_else(|| "13800138000".to_string());
     let initial_logged_in = if auth_status.verified {
         "true"

@@ -40,6 +40,12 @@ pub struct SinopecHttpTransport {
 }
 
 impl SinopecHttpTransport {
+    pub async fn decode_response_text(resp: reqwest::Response) -> AppResult<String> {
+        let bytes = resp.bytes().await?;
+        let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
+        Ok(cow.into_owned())
+    }
+
     pub fn new(base_url: String, cookie_file: PathBuf, recorder: ResearchRecorder) -> Self {
         let initial_cookies = Self::load_cookies_from_disk(&cookie_file);
         let client = reqwest::Client::builder()
@@ -113,7 +119,7 @@ impl SinopecHttpTransport {
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
         self.capture_response_cookies(resp.headers()).await;
-        let text = resp.text().await?;
+        let text = Self::decode_response_text(resp).await?;
         let json: serde_json::Value =
             serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({}));
         let _ = self
@@ -197,7 +203,7 @@ impl SinopecHttpTransport {
         if status == 390 {
             return Ok(None);
         }
-        let text = resp.text().await?;
+        let text = Self::decode_response_text(resp).await?;
         if text.contains("default_corp.html") {
             return Ok(None);
         }
@@ -303,8 +309,10 @@ impl SinopecHttpTransport {
         let idtype = creds.id_type.clone().unwrap_or_else(|| "01".to_string());
         let taxtype = creds.tax_type.clone().unwrap_or_else(|| "1".to_string());
         let province = creds.province.clone().unwrap_or_else(|| "12".to_string());
-        let cardno = creds.master_card_no.clone().unwrap_or_default();
-        let once_card = if cardno.len() == 19 { "1" } else { "0" };
+        // Corporate multi-user account login uses onceCard = "0" and cardno = "".
+        // Master card is used post-login for transactions and invoicing.
+        let cardno = "";
+        let once_card = "0";
 
         let validate_url = format!("{}/corpgas/html/loginAction_validatejs.json", self.base_url);
         let sms_url = format!("{}/corpgas/html/loginAction_smsYzm.json", self.base_url);
@@ -318,7 +326,7 @@ impl SinopecHttpTransport {
             ("jsprovince", province.as_str()),
             ("province", province.as_str()),
             ("onceCard", once_card),
-            ("cardno", cardno.as_str()),
+            ("cardno", cardno),
             ("taxtype", taxtype.as_str()),
         ];
 
@@ -343,7 +351,7 @@ impl SinopecHttpTransport {
             .send()
             .await?;
         self.capture_response_cookies(sms_resp.headers()).await;
-        let text = sms_resp.text().await?;
+        let text = Self::decode_response_text(sms_resp).await?;
         let json: serde_json::Value =
             serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "raw": text }));
 
@@ -377,8 +385,10 @@ impl SinopecHttpTransport {
         let idtype = creds.id_type.clone().unwrap_or_else(|| "01".to_string());
         let taxtype = creds.tax_type.clone().unwrap_or_else(|| "1".to_string());
         let province = creds.province.clone().unwrap_or_else(|| "12".to_string());
-        let cardno = creds.master_card_no.clone().unwrap_or_default();
-        let once_card = if cardno.len() == 19 { "1" } else { "0" };
+        // Corporate multi-user account login uses onceCard = "0" and cardno = "".
+        // Master card is used post-login for transactions and invoicing.
+        let cardno = "";
+        let once_card = "0";
 
         let params = [
             ("tax", tax.as_str()),
@@ -389,7 +399,7 @@ impl SinopecHttpTransport {
             ("smsYzm", sms_code.trim()),
             ("province", province.as_str()),
             ("jsprovince", province.as_str()),
-            ("cardno", cardno.as_str()),
+            ("cardno", cardno),
             ("tjm", ""),
             ("onceCard", once_card),
             ("taxtype", taxtype.as_str()),
@@ -405,7 +415,7 @@ impl SinopecHttpTransport {
             .send()
             .await?;
         self.capture_response_cookies(resp.headers()).await;
-        let text = resp.text().await?;
+        let text = Self::decode_response_text(resp).await?;
         let json: serde_json::Value =
             serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "raw": text }));
 
@@ -446,7 +456,7 @@ impl SinopecHttpTransport {
             .body("")
             .send()
             .await?;
-        let text = resp.text().await?;
+        let text = Self::decode_response_text(resp).await?;
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
             if let Some(c) = json.get("defaultCardNo").and_then(|v| v.as_str()) {
                 if !c.is_empty() {

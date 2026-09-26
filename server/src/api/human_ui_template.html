@@ -703,7 +703,8 @@
       });
       const data = await res.json();
       if (data.ok) {
-        setNotice('图形算式已由 Rust 自动算出 (' + (data.data.captcha_expression || '已校验') + ')，6 位短信验证码已发送至 13800138000！请在下方输入验证码解锁。', 'success');
+        const ph = (document.getElementById('phone')?.value || '手机').trim();
+        setNotice('图形算式已由 Rust 自动算出 (' + (data.data.captcha_expression || '已校验') + ')，6 位短信验证码已发送至 ' + ph + '！请在下方输入验证码解锁。', 'success');
         document.getElementById('sms_code').focus();
         let sec = 120;
         clearInterval(smsCountdownTimer);
@@ -726,8 +727,9 @@
 
     async function submitSmsAndUnlock() {
       const sms = document.getElementById('sms_code').value.trim();
+      const ph = (document.getElementById('phone')?.value || '手机').trim();
       if (sms.length < 4) {
-        setNotice('请先输入手机 13800138000 收到的 6 位短信验证码！', 'error');
+        setNotice('请先输入手机 ' + ph + ' 收到的 6 位短信验证码！', 'error');
         return;
       }
       setNotice('正在向中国石化提交短信验证码并校验主卡与发票池状态...');
@@ -738,14 +740,18 @@
       });
       const data = await res.json();
       const smsResp = data?.data?.sms_login_response;
-      if (data.ok && (!smsResp || !smsResp.message)) {
+      const isVerified = data?.data?.verified || (smsResp && (smsResp.name || smsResp.value));
+      const hasErrMsg = smsResp?.message || data?.error?.message;
+      if (data.ok && isVerified && !hasErrMsg) {
         isLoggedIn = true;
         activeTab = 'invoice';
         syncAuthUi();
-        setNotice('登录成功！已解锁【按时间段开票】【已开发票下载】【充值记录与主卡余额】全部功能。', 'success');
+        const comp = smsResp?.name || '中国石化单位认证通过';
+        setNotice('登录成功！企业【' + comp + '】已就绪，已解锁全部开票与查询功能。', 'success');
         queryUninvoiced();
       } else {
-        setNotice('短信验证未通过：' + (smsResp?.message || data?.error?.message || '请重新获取短信验证码'), 'error');
+        const errMsg = smsResp?.message || data?.error?.message || '短信验证码已失效或不匹配，请重新点击上方“获取手机短信验证码”';
+        setNotice('短信验证未通过：' + errMsg + '。请确认输入的是最新收到的验证码。', 'error');
       }
     }
 

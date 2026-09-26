@@ -288,12 +288,22 @@ async fn human_action_complete_handler(
             if let Some(ephemeral) = state.human.take_ephemeral_sms_code(&id).await {
                 let _ = state.browser.submit_sms_in_browser(&ephemeral).await;
                 if let Ok(Some(creds)) = state.auth.credentials().load() {
-                    if let Ok(res) = state
+                    match state
                         .http
                         .submit_corporate_sms_login(&creds, &ephemeral)
                         .await
                     {
-                        login_result = Some(res);
+                        Ok(res) => {
+                            tracing::info!(res = ?res, "Sinopec submit_corporate_sms_login response");
+                            login_result = Some(res);
+                        }
+                        Err(e) => {
+                            tracing::error!("submit_corporate_sms_login error: {e}");
+                            login_result = Some(json!({
+                                "error": e.to_string(),
+                                "message": format!("提交短信验证码请求异常: {e}")
+                            }));
+                        }
                     }
                 }
             }
@@ -428,7 +438,7 @@ async fn auth_send_sms_handler(
     })?;
     let browser_fill = state
         .browser
-        .auto_fill_and_send_sms_in_browser(&creds, true)
+        .auto_fill_and_send_sms_in_browser(&creds, false)
         .await
         .ok();
     let http_res = state

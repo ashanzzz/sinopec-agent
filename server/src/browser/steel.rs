@@ -222,7 +222,7 @@ impl SteelBrowserDriver {
         let idno = creds.id_number.clone().unwrap_or_default();
         let name = creds.holder_name.clone().unwrap_or_default();
         let mobile = creds.phone.clone().unwrap_or_default();
-        let cardno = creds.master_card_no.clone().unwrap_or_default();
+        let _cardno = creds.master_card_no.clone().unwrap_or_default();
 
         // Step 1: Fill fields and extract canvas JPEG data URL from img.random_code
         let extract_js = format!(
@@ -248,11 +248,10 @@ impl SteelBrowserDriver {
                 setVal('name_hide', {name:?});
                 setVal('member_phone', {mobile:?});
                 setVal('member_phone_hide', {mobile:?});
-                if ({cardno:?}.length === 19) {{
-                    const cdiv = doc.getElementById('cardno_div');
-                    if (cdiv) cdiv.classList.remove('hide');
-                    setVal('card_no', {cardno:?});
-                }}
+                // Corporate multi-user login: cardno_div stays hidden and card_no empty
+                const cdiv = doc.getElementById('cardno_div');
+                if (cdiv) cdiv.classList.add('hide');
+                setVal('card_no', '');
                 const hyzc = doc.getElementById('hyzc');
                 if (hyzc) {{
                     hyzc.checked = true;
