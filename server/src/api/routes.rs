@@ -545,10 +545,14 @@ async fn allocations_logs_handler(
         .query_yufenpei_logs(&master_card_no, &start, &end)
         .await?;
     let filtered: Vec<Value> = if let Some(target_card) = &q.card_no {
-        raw_logs
-            .into_iter()
-            .filter(|a| a.get("cardNo").and_then(|v| v.as_str()) == Some(target_card.as_str()))
-            .collect()
+        if target_card == "all" || target_card.is_empty() {
+            raw_logs
+        } else {
+            raw_logs
+                .into_iter()
+                .filter(|a| a.get("cardNo").and_then(|v| v.as_str()) == Some(target_card.as_str()))
+                .collect()
+        }
     } else {
         raw_logs
     };
@@ -575,10 +579,58 @@ async fn card_transactions_handler(
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
     let start = q.start_date.unwrap_or_else(|| "2026-01-01".to_string());
     let end = q.end_date.unwrap_or_else(|| "2026-09-25".to_string());
-    let raw_logs = state
-        .http
-        .query_card_transaction_logs(&card_no, &start, &end)
-        .await?;
+    let raw_logs = if card_no == "all" {
+        let master = state
+            .http
+            .resolve_default_card_no()
+            .await
+            .unwrap_or_else(|_| "1000111200006330729".to_string());
+        let vice_cards = state
+            .http
+            .query_vice_cards(&master)
+            .await
+            .unwrap_or_default();
+        let mut card_list = vec![master];
+        for vc in vice_cards {
+            if let Some(cno) = vc.get("cardNo").and_then(|v| v.as_str()) {
+                if !card_list.contains(&cno.to_string()) {
+                    card_list.push(cno.to_string());
+                }
+            }
+        }
+        let mut all_logs = Vec::new();
+        for c in &card_list {
+            if let Ok(mut logs) = state
+                .http
+                .query_card_transaction_logs(c, &start, &end)
+                .await
+            {
+                for item in &mut logs {
+                    if item.get("cardNo").is_none() {
+                        item["cardNo"] = serde_json::json!(c);
+                    }
+                }
+                all_logs.extend(logs);
+            }
+        }
+        all_logs.sort_by(|a, b| {
+            let t_a = a.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            let t_b = b.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            t_b.cmp(t_a)
+        });
+        all_logs
+    } else {
+        let mut logs = state
+            .http
+            .query_card_transaction_logs(&card_no, &start, &end)
+            .await?;
+        for item in &mut logs {
+            if item.get("cardNo").is_none() {
+                item["cardNo"] = serde_json::json!(card_no);
+            }
+        }
+        logs
+    };
 
     let filtered: Vec<Value> = if let Some(tt) = &q.tra_type {
         if tt == "all" || tt.is_empty() {

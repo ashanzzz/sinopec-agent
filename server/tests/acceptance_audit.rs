@@ -279,7 +279,7 @@ async fn test_full_system_acceptance_audit_26_points() {
         .unwrap();
     let resp_ui = app.clone().oneshot(req_ui).await.unwrap();
     assert_eq!(resp_ui.status(), StatusCode::OK);
-    let ui_bytes = axum::body::to_bytes(resp_ui.into_body(), 128 * 1024)
+    let ui_bytes = axum::body::to_bytes(resp_ui.into_body(), 512 * 1024)
         .await
         .unwrap();
     let ui_html = String::from_utf8(ui_bytes.to_vec()).unwrap();
