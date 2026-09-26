@@ -1039,24 +1039,25 @@
           const diagCookieDetails = document.getElementById('diag-cookie-details');
 
           const cInfo = s.cookies || {};
-          if (cInfo.present && cInfo.valid) {
+          const isCookieValid = (cInfo.valid !== undefined ? cInfo.valid : (s.auth && s.auth.verified));
+          if (isCookieValid) {
             if (cookPill) cookPill.className = 'auth-pill online';
             if (cookDot) cookDot.className = 'dot online';
-            if (cookTxt) cookTxt.textContent = 'Cookie: 有效存活 (' + (cInfo.session_id_preview || 'JSESSIONID') + ')';
+            if (cookTxt) cookTxt.textContent = 'Cookie 令牌: 存活有效 (' + (cInfo.session_id_preview || 'JSESSIONID') + ')';
 
             if (diagCookieCard) diagCookieCard.style.borderLeftColor = '#16a34a';
             if (diagCookieBadge) { diagCookieBadge.textContent = '🟢 令牌存活'; diagCookieBadge.style.color = '#166534'; }
-            if (diagCookieStatus) diagCookieStatus.textContent = 'JSESSIONID: ' + (cInfo.session_id_preview || '有效');
-            if (diagCookieDetails) diagCookieDetails.textContent = '包含 LASTMSG 通行令牌 · 持久化文件在线有效';
+            if (diagCookieStatus) diagCookieStatus.textContent = 'JSESSIONID: ' + (cInfo.session_id_preview || '有效在线');
+            if (diagCookieDetails) diagCookieDetails.textContent = '包含 LASTMSG 通行令牌 · 凭据在线有效';
           } else {
             if (cookPill) cookPill.className = 'auth-pill locked';
             if (cookDot) cookDot.className = 'dot locked';
-            if (cookTxt) cookTxt.textContent = 'Cookie: 已失效需重登';
+            if (cookTxt) cookTxt.textContent = 'Cookie 令牌: 已失效需重登';
 
             if (diagCookieCard) diagCookieCard.style.borderLeftColor = '#dc2626';
             if (diagCookieBadge) { diagCookieBadge.textContent = '🔴 凭据过期'; diagCookieBadge.style.color = '#991b1b'; }
             if (diagCookieStatus) diagCookieStatus.textContent = 'Cookie 凭据已失效';
-            if (diagCookieDetails) diagCookieDetails.textContent = '超过时效限制，需通过短信验证换取新令牌';
+            if (diagCookieDetails) diagCookieDetails.textContent = '会话已超时 (HTTP 390)，需通过短信重新登录';
           }
 
           // 3. Steel Remote Chrome Pill & Diag Card
