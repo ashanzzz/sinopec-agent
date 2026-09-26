@@ -266,32 +266,58 @@ impl SinopecParser {
                 .and_then(|v| v.as_bool())
                 .unwrap_or_else(|| invoice_state == "UNINVOICED" && amount_fen > 0);
 
+            let remote_id = item
+                .get("transId")
+                .or_else(|| item.get("remote_id"))
+                .or_else(|| item.get("id"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .unwrap_or_else(|| format!("tx_{idx:04}"));
+
+            let raw_time = item
+                .get("datetime")
+                .or_else(|| item.get("transaction_time"))
+                .or_else(|| item.get("tradeTime"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("2026-09-15 10:30:00");
+
+            let transaction_time =
+                if raw_time.len() == 14 && raw_time.chars().all(|c| c.is_ascii_digit()) {
+                    format!(
+                        "{}-{}-{} {}:{}:{}",
+                        &raw_time[0..4],
+                        &raw_time[4..6],
+                        &raw_time[6..8],
+                        &raw_time[8..10],
+                        &raw_time[10..12],
+                        &raw_time[12..14]
+                    )
+                } else {
+                    raw_time.trim().to_string()
+                };
+
+            let station = item
+                .get("nodeName")
+                .or_else(|| item.get("station"))
+                .or_else(|| item.get("nodeTag"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .unwrap_or_else(|| "中国石化加油网点".to_string());
+
+            let product = item
+                .get("tradeName")
+                .or_else(|| item.get("product"))
+                .or_else(|| item.get("oilName"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .unwrap_or_else(|| "92号车用乙醇汽油(E10)(VIB)".to_string());
+
             out.push(Transaction {
-                remote_id: item
-                    .get("remote_id")
-                    .or_else(|| item.get("id"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("tx_{idx:04}")),
+                remote_id,
                 card_id,
-                transaction_time: item
-                    .get("transaction_time")
-                    .or_else(|| item.get("tradeTime"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("2026-09-15 10:30:00")
-                    .to_string(),
-                station: item
-                    .get("station")
-                    .or_else(|| item.get("nodeTag"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("中国石化天津加油站")
-                    .to_string(),
-                product: item
-                    .get("product")
-                    .or_else(|| item.get("oilName"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("92号车用汽油(VIB)")
-                    .to_string(),
+                transaction_time,
+                station,
+                product,
                 amount: format_fen_yuan(amount_fen),
                 amount_fen,
                 invoice_state,
