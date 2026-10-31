@@ -19,7 +19,28 @@ async fn main() -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialize sinopec-server state: {e}"))?;
 
-    let app = build_router(state);
+    let app = build_router(state.clone());
+
+    // Background keepalive task: automatically probe remote session every 3 minutes
+    // to keep JSESSIONID and Sinopec cookies active on the official gateway.
+    let keepalive_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(180));
+        loop {
+            interval.tick().await;
+            let creds = keepalive_state.auth.credentials().load().ok().flatten();
+            if let Some(c) = creds {
+                let status = keepalive_state.auth.status().await;
+                if let Ok(st) = status {
+                    if st.verified {
+                        tracing::info!("Running Sinopec session keepalive probe...");
+                        let _ = keepalive_state.http.probe_corporate_balance().await;
+                    }
+                }
+            }
+        }
+    });
+
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     info!(
         bind = %config.bind_addr,

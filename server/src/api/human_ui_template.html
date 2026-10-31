@@ -1689,20 +1689,20 @@ return;
 }
 const preview = data.data;
 const total = preview.total_amount || '0.00';
-const count = preview.eligible_transactions_count || 0;
-const items = preview.items || [];
+const candidates = preview.candidates || preview.items || [];
+const count = preview.transaction_count || candidates.length || 0;
 const bar = document.getElementById('inv-summary-bar');
 if (bar) {
 bar.innerHTML = '查询成功：<strong>' + s + ' 至 ' + e + '</strong> 共 <strong>' + count + '</strong> 笔未开发票消费，可开票合计 <strong style="color:var(--status-green);font-size:16px;">¥' + total + '</strong>';
 }
-const rows = items.map((it, idx) =>
+const rows = candidates.map((it, idx) =>
 '<tr>' +
 '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
-'<td class="tabular">' + it.transaction_time + '</td>' +
-'<td>' + (it.station_name || '中石化加油站') + '</td>' +
-'<td><span class="chip">' + (it.oil_name || '汽油/柴油') + '</span></td>' +
+'<td class="tabular">' + (it.transaction_time || '-') + '</td>' +
+'<td>' + (it.station || it.station_name || '中石化加油站') + '</td>' +
+'<td><span class="chip">' + (it.product || it.oil_name || '汽油/柴油') + '</span></td>' +
 '<td class="num tabular">' + (it.volume_litres || '-') + '</td>' +
-'<td class="num tabular">¥' + (it.unit_price || '-') + '</td>' +
+'<td class="num tabular">' + (it.unit_price ? '¥' + it.unit_price : '-') + '</td>' +
 '<td class="num tabular"><strong style="color:var(--brand-blue);">¥' + it.amount + '</strong></td>' +
 '</tr>'
 ).join('');

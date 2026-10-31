@@ -55,7 +55,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/browser/prewarm", post(browser_prewarm_handler))
         .route("/browser/screenshot", get(browser_screenshot_handler))
         .route("/invoices/create-live", post(invoice_create_live_handler))
-        .route("/invoices/preview", post(invoice_preview_handler))
+        .route(
+            "/invoices/preview",
+            post(invoice_preview_handler).get(invoice_preview_get_handler),
+        )
         .route(
             "/invoices",
             post(invoice_create_handler).get(invoices_list_handler),
@@ -198,6 +201,30 @@ async fn transactions_handler(
         .await?;
     Ok(ApiEnvelope::success(
         serde_json::to_value(list).unwrap_or_default(),
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InvoicePreviewQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub card_id: Option<String>,
+    pub invoice_type: Option<String>,
+}
+
+async fn invoice_preview_get_handler(
+    State(state): State<AppState>,
+    Query(q): Query<InvoicePreviewQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let req = InvoicePreviewRequest {
+        start_date: q.start_date.unwrap_or_else(|| "2026-09-01".to_string()),
+        end_date: q.end_date.unwrap_or_else(|| "2026-09-25".to_string()),
+        card_id: q.card_id,
+        invoice_type: q.invoice_type,
+    };
+    let preview = state.service.preview_invoice(req).await?;
+    Ok(ApiEnvelope::success(
+        serde_json::to_value(preview).unwrap_or_default(),
     ))
 }
 
