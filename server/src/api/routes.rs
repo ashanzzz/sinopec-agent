@@ -218,7 +218,7 @@ async fn invoice_preview_get_handler(
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
     let req = InvoicePreviewRequest {
         start_date: q.start_date.unwrap_or_else(|| "2026-09-01".to_string()),
-        end_date: q.end_date.unwrap_or_else(|| "2026-09-25".to_string()),
+        end_date: q.end_date.unwrap_or_else(|| "2026-09-30".to_string()),
         card_id: q.card_id,
         invoice_type: q.invoice_type,
     };
@@ -554,7 +554,7 @@ async fn invoice_create_live_handler(
     State(state): State<AppState>,
     Json(req): Json<CreateLiveInvoiceBody>,
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
-    let mail = req.mail.as_deref().unwrap_or("invoice@example.com");
+    let mail = req.mail.as_deref().unwrap_or("335356119@qq.com");
     let windows = crate::sinopec::parser::SinopecParser::split_date_windows(
         &req.start_date,
         &req.end_date,
