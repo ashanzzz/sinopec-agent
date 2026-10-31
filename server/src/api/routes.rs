@@ -37,6 +37,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/ensure", post(auth_ensure_handler))
         .route("/auth/check", post(auth_check_handler))
         .route("/auth/send-sms", post(auth_send_sms_handler))
+        .route("/auth/sms/send", post(auth_send_sms_handler))
+        .route("/auth/sms/login", post(auth_direct_sms_login_handler))
+        .route("/auth/sms-login", post(auth_direct_sms_login_handler))
         .route("/account", get(account_handler))
         .route("/cards", get(cards_handler))
         .route("/invoice-capabilities", get(invoice_capabilities_handler))
@@ -457,6 +460,33 @@ async fn auth_send_sms_handler(
         "sms_response": http_res.get("sms_response"),
         "steel_browser": browser_fill
     })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DirectSmsLoginBody {
+    pub sms_code: String,
+    pub credentials: Option<StoredCredentials>,
+}
+
+async fn auth_direct_sms_login_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<DirectSmsLoginBody>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    if let Some(incoming) = payload.credentials {
+        let _ = state.auth.credentials().save(incoming)?;
+    }
+    let creds = state.auth.credentials().load()?.ok_or_else(|| {
+        AppError::new(
+            ErrorCode::CredentialsRequired,
+            "No corporate credentials stored",
+        )
+    })?;
+    let res = state
+        .http
+        .submit_corporate_sms_login(&creds, &payload.sms_code)
+        .await?;
+    let _ = state.service.check_auth().await;
+    Ok(ApiEnvelope::success(res))
 }
 
 async fn root_redirect_handler(State(state): State<AppState>) -> axum::response::Response {

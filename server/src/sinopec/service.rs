@@ -60,7 +60,9 @@ impl SinopecService {
 
     pub async fn check_auth(&self) -> AppResult<AuthStatusResponse> {
         if let Ok(browser_cookies) = self.browser.sync_sinopec_cookies().await {
-            if !browser_cookies.is_empty() {
+            // ONLY merge browser cookies if browser is authenticated (has LASTMSG)
+            // Never overwrite active SMS session with unauthenticated browser cookies
+            if browser_cookies.contains_key("LASTMSG") {
                 let _ = self.http.merge_cookies(browser_cookies).await;
             }
         }

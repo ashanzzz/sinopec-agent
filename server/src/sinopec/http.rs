@@ -369,10 +369,15 @@ impl SinopecHttpTransport {
         creds: &crate::auth::credentials::StoredCredentials,
         sms_code: &str,
     ) -> AppResult<serde_json::Value> {
-        // Reload disk cookies in case they were updated externally
-        let disk_cookies = Self::load_cookies_from_disk(&self.cookie_file);
-        if !disk_cookies.is_empty() {
-            let _ = self.merge_cookies(disk_cookies).await;
+        let has_session = {
+            let guard = self.cookies.read().await;
+            guard.contains_key("JSESSIONID")
+        };
+        if !has_session {
+            let disk_cookies = Self::load_cookies_from_disk(&self.cookie_file);
+            if !disk_cookies.is_empty() {
+                let _ = self.merge_cookies(disk_cookies).await;
+            }
         }
 
         let login_page_url = format!("{}/corpgas/res/html/login/login_pc.jsp", self.base_url);
@@ -397,7 +402,7 @@ impl SinopecHttpTransport {
             ("mobile", mobile.as_str()),
             ("idtype", idtype.as_str()),
             ("smsYzm", sms_code.trim()),
-            ("province", province.as_str()),
+            ("province", ""),
             ("jsprovince", province.as_str()),
             ("cardno", cardno),
             ("tjm", ""),
