@@ -5,7 +5,7 @@ use crate::error::AppResult;
 use crate::research::Redactor;
 use crate::sinopec::models::AccountMode;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredCredentials {
     #[serde(default)]
     pub account_mode: AccountMode,
@@ -20,6 +20,24 @@ pub struct StoredCredentials {
     pub holder_name: Option<String>,
     pub master_card_no: Option<String>,
     pub province: Option<String>,
+}
+
+impl Default for StoredCredentials {
+    fn default() -> Self {
+        Self {
+            account_mode: AccountMode::Corporate,
+            username: None,
+            password: None,
+            phone: Some("13602004317".to_string()),
+            tax_code: Some("91120222MA069UGT20".to_string()),
+            tax_type: Some("1".to_string()),
+            id_type: Some("01".to_string()),
+            id_number: Some("12011019921213151X".to_string()),
+            holder_name: Some("孟祥山".to_string()),
+            master_card_no: Some("1000111200006330729".to_string()),
+            province: Some("12".to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,12 +69,26 @@ impl CredentialProvider {
     }
 
     pub fn load(&self) -> AppResult<Option<StoredCredentials>> {
+        let defaults = StoredCredentials::default();
         if !self.file_path.exists() {
-            return Ok(None);
+            return Ok(Some(defaults));
         }
         let raw = std::fs::read_to_string(&self.file_path)?;
-        let parsed: StoredCredentials = serde_json::from_str(&raw).unwrap_or_default();
-        Ok(Some(parsed))
+        let parsed: StoredCredentials = serde_json::from_str(&raw).unwrap_or(defaults.clone());
+        let merged = StoredCredentials {
+            account_mode: parsed.account_mode,
+            username: parsed.username.or(defaults.username),
+            password: parsed.password.or(defaults.password),
+            phone: parsed.phone.or(defaults.phone),
+            tax_code: parsed.tax_code.or(defaults.tax_code),
+            tax_type: parsed.tax_type.or(defaults.tax_type),
+            id_type: parsed.id_type.or(defaults.id_type),
+            id_number: parsed.id_number.or(defaults.id_number),
+            holder_name: parsed.holder_name.or(defaults.holder_name),
+            master_card_no: parsed.master_card_no.or(defaults.master_card_no),
+            province: parsed.province.or(defaults.province),
+        };
+        Ok(Some(merged))
     }
 
     pub fn save(&self, incoming: StoredCredentials) -> AppResult<CredentialsStatusView> {

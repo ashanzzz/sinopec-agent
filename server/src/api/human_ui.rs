@@ -20,12 +20,12 @@ pub async fn render_human_action_page(
 
     let tax_code = stored
         .tax_code
-        .unwrap_or_else(|| "91120116MA06ABCDEF".to_string());
+        .unwrap_or_else(|| "91120222MA069UGT20".to_string());
     let id_number = stored
         .id_number
-        .unwrap_or_else(|| "120101199001011234".to_string());
-    let holder_name = stored.holder_name.unwrap_or_else(|| "张三".to_string());
-    let phone = stored.phone.unwrap_or_else(|| "13800138000".to_string());
+        .unwrap_or_else(|| "12011019921213151X".to_string());
+    let holder_name = stored.holder_name.unwrap_or_else(|| "孟祥山".to_string());
+    let phone = stored.phone.unwrap_or_else(|| "13602004317".to_string());
     let initial_logged_in = if auth_status.verified {
         "true"
     } else {

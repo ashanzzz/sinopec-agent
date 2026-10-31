@@ -5,12 +5,12 @@ export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<any>(null);
   const [accountMode, setAccountMode] = useState<'corporate' | 'personal'>('corporate');
   const [taxType, setTaxType] = useState('1');
-  const [taxCode, setTaxCode] = useState('91120116MA06ABCDEF');
+  const [taxCode, setTaxCode] = useState('91120222MA069UGT20');
   const [idType, setIdType] = useState('01');
-  const [idNumber, setIdNumber] = useState('120101199001011234');
-  const [holderName, setHolderName] = useState('张*山');
-  const [phone, setPhone] = useState('13800138000');
-  const [masterCardNo, setMasterCardNo] = useState('');
+  const [idNumber, setIdNumber] = useState('12011019921213151X');
+  const [holderName, setHolderName] = useState('孟祥山');
+  const [phone, setPhone] = useState('13602004317');
+  const [masterCardNo, setMasterCardNo] = useState('1000111200006330729');
   const [province, setProvince] = useState('12');
   const [username] = useState('');
   const [password] = useState('');
