@@ -177,7 +177,7 @@ impl SinopecService {
             return Ok(acc);
         }
         Err(AppError::new(
-            ErrorCode::UpstreamError,
+            ErrorCode::SinopecUnavailable,
             "无法从中石化网厅获取真实账户信息，会话可能已过期",
         ))
     }
@@ -205,7 +205,7 @@ impl SinopecService {
             return Ok(vec![primary]);
         }
         Err(AppError::new(
-            ErrorCode::UpstreamError,
+            ErrorCode::SinopecUnavailable,
             "无法从中石化网厅获取加油卡列表，会话可能已过期",
         ))
     }
@@ -265,7 +265,7 @@ impl SinopecService {
             ));
         }
         Err(AppError::new(
-            ErrorCode::UpstreamError,
+            ErrorCode::SinopecUnavailable,
             "无法从中石化网厅获取可用开票额度",
         ))
     }
@@ -286,7 +286,7 @@ impl SinopecService {
                 let code = live_json.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
                 if code != 0 {
                     return Err(AppError::new(
-                        ErrorCode::UpstreamError,
+                        ErrorCode::InvalidRequest,
                         format!("中石化网厅提示: {}", msg),
                     ));
                 }
