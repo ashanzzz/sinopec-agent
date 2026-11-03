@@ -1594,6 +1594,7 @@ impl SinopecHttpTransport {
         // 5. Process each Vice Card
         let mut total_vices_loaded_fen: i64 = 0;
         let mut total_vices_pre_fen: i64 = 0;
+        let mut total_vices_qc_fen: i64 = 0;
 
         for vc in &parsed_vice_cards {
             let v_card_no = vc.get("card_no").and_then(|v| v.as_str()).unwrap_or("");
@@ -1632,6 +1633,7 @@ impl SinopecHttpTransport {
                 .collect();
 
             let v_allocated_fen = v_qc_total_fen + pre_bal_fen;
+            total_vices_qc_fen += v_qc_total_fen;
             cards_ledger.insert(
                 v_card_no.to_string(),
                 serde_json::json!({
@@ -1659,7 +1661,8 @@ impl SinopecHttpTransport {
 
         let total_all_loaded_fen = primary_loaded_fen + total_vices_loaded_fen;
         let total_all_unloaded_fen = primary_pre_fen + total_vices_pre_fen;
-        let total_all_allocated_fen = mc_allocated_fen + total_allocated_to_vices_fen;
+        let total_all_quancun_fen = mc_qc_total_fen + total_vices_qc_fen;
+        let total_all_allocated_fen = total_all_quancun_fen + total_all_unloaded_fen;
 
         Ok(serde_json::json!({
             "company_name": comp_name,
