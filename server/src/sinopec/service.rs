@@ -183,7 +183,7 @@ impl SinopecService {
     }
 
     pub async fn list_cards(&self) -> AppResult<Vec<Card>> {
-        if let Some(probe) = self.http.probe_corporate_balance().await? {
+        if let Ok(Some(probe)) = self.http.probe_corporate_balance().await {
             let mut cards = vec![probe.primary_card];
             if let Ok(Some(extra)) = self.http.query_card_list().await {
                 for c in extra {
@@ -626,16 +626,24 @@ impl SinopecService {
             .query_live_plain_invoices("2026-01-01", &Utc::now().format("%Y-%m-%d").to_string())
             .await
         {
-            if let Some(arr) = live_json.get("list").and_then(|v| v.as_array()) {
+            let raw_list = live_json
+                .get("detailList")
+                .and_then(|v| v.as_array())
+                .or_else(|| live_json.get("list").and_then(|v| v.as_array()));
+
+            if let Some(arr) = raw_list {
                 let out = arr
                     .iter()
                     .map(|item| {
                         let fen = SinopecParser::parse_fen(item.get("money"));
                         let raw_date = item
-                            .get("addDate")
+                            .get("date")
+                            .or_else(|| item.get("addDate"))
                             .and_then(|v| v.as_str())
-                            .unwrap_or("20260925");
-                        let date_fmt = if raw_date.len() >= 8 {
+                            .unwrap_or("2026-09-25");
+                        let date_fmt = if raw_date.contains('-') {
+                            raw_date.split(' ').next().unwrap_or(raw_date).to_string()
+                        } else if raw_date.len() >= 8 {
                             format!(
                                 "{}-{}-{}",
                                 &raw_date[0..4],
@@ -645,32 +653,47 @@ impl SinopecService {
                         } else {
                             raw_date.to_string()
                         };
+                        let seq = item
+                            .get("sequence")
+                            .or_else(|| item.get("id"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let inv_no = item
+                            .get("invoiceNumber")
+                            .or_else(|| item.get("invoiceNo"))
+                            .and_then(|v| v.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string());
+                        let buyer = item
+                            .get("customName")
+                            .or_else(|| item.get("title"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("天津祺富机械加工有限公司")
+                            .to_string();
+                        let dl_url = item
+                            .get("url")
+                            .or_else(|| item.get("pdfUrl"))
+                            .and_then(|v| v.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string());
+
                         InvoiceRecord {
-                            id: item
-                                .get("id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string(),
-                            invoice_no: item
-                                .get("invoiceNo")
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
+                            id: if seq.is_empty() {
+                                inv_no.clone().unwrap_or_else(|| format!("inv_{}", Uuid::new_v4().simple()))
+                            } else {
+                                seq
+                            },
+                            invoice_no: inv_no,
                             invoice_date: date_fmt,
                             invoice_type: "数电增值税专用发票".to_string(),
-                            buyer_name: item
-                                .get("title")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("天津祺富机械加工有限公司")
-                                .to_string(),
+                            buyer_name: buyer,
                             amount: format_fen_yuan(fen),
                             amount_fen: fen,
                             status: "ISSUED".to_string(),
                             file_format: "PDF/OFD".to_string(),
                             file_status: "READY".to_string(),
-                            download_path: item
-                                .get("url")
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
+                            download_path: dl_url,
                         }
                     })
                     .collect();

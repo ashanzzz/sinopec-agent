@@ -499,6 +499,15 @@ impl SinopecHttpTransport {
                 "invoicev2/createInvoice.jsp",
             )
         };
+        tracing::info!(
+            endpoint = endpoint,
+            card_no = %card_no,
+            start_date = start_date,
+            end_date = end_date,
+            merge = merge,
+            is_new = is_new,
+            "Querying Sinopec unbilled transactions endpoint"
+        );
         let url = format!("{}/corpgas/webjsp/{}", self.base_url, endpoint);
         let params = [
             ("cardNo", card_no.as_str()),
@@ -522,18 +531,36 @@ impl SinopecHttpTransport {
             .send()
             .await?;
         if resp.status().as_u16() == 390 {
+            tracing::warn!(endpoint = endpoint, "Sinopec returned HTTP 390 session expired");
             return Ok(None);
         }
         let bytes = resp.bytes().await?;
         let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
         if cow.contains("default_corp.html") || cow.contains("数据错误") {
+            tracing::warn!(endpoint = endpoint, "Sinopec returned login redirect or DataError page");
             return Ok(None);
         }
-        Ok(serde_json::from_str(&cow).ok())
+        let parsed: serde_json::Value = serde_json::from_str(&cow).map_err(|e| {
+            tracing::error!(endpoint = endpoint, error = %e, raw = %cow, "Failed to parse JSON response from Sinopec unbilled query");
+            AppError::new(ErrorCode::ApiContractChanged, format!("中石化网厅返回非合法JSON: {e}"))
+        })?;
+
+        if let Some(code) = parsed.get("code").and_then(|v| v.as_i64()) {
+            if code != 0 {
+                let msg = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("未知网厅提示");
+                tracing::warn!(
+                    endpoint = endpoint,
+                    code = code,
+                    message = msg,
+                    "Sinopec unbilled query returned non-zero code"
+                );
+            }
+        }
+        Ok(Some(parsed))
     }
 
     /// Automatically routes queries based on Sinopec's system cutover date (2026-10-20).
-    /// If range spans before and after 2026-10-20, queries both endpoints and merges them.
+    /// If range spans before and after 2026-10-20, queries both endpoints and merges them with full diagnostics.
     pub async fn query_live_uninvoice_trans(
         &self,
         start_date: &str,
@@ -542,17 +569,27 @@ impl SinopecHttpTransport {
     ) -> AppResult<Option<serde_json::Value>> {
         const CUTOVER_DATE: &str = "2026-10-20";
         if end_date < CUTOVER_DATE {
+            tracing::info!(start_date, end_date, "Routing uninvoiced query strictly to Old System (< 2026-10-20)");
             return self
                 .query_live_uninvoice_trans_single(start_date, end_date, merge, false)
                 .await;
         }
         if start_date >= CUTOVER_DATE {
+            tracing::info!(start_date, end_date, "Routing uninvoiced query strictly to New System (>= 2026-10-20)");
             return self
                 .query_live_uninvoice_trans_single(start_date, end_date, merge, true)
                 .await;
         }
 
         // Spanning cutover: query [start_date, 2026-10-19] via old API and [2026-10-20, end_date] via new API
+        tracing::info!(
+            start_date,
+            end_date,
+            cutover = CUTOVER_DATE,
+            "Spanning query across cutover 2026-10-20: querying Old System ({} ~ 2026-10-19) and New System (2026-10-20 ~ {})",
+            start_date,
+            end_date
+        );
         let old_res = self
             .query_live_uninvoice_trans_single(start_date, "2026-10-19", merge, false)
             .await?;
@@ -567,8 +604,15 @@ impl SinopecHttpTransport {
         let mut combined_list = Vec::new();
         let mut card_info = None;
         let mut config = None;
+        let mut errors = Vec::new();
 
         if let Some(mut old_val) = old_res {
+            if let Some(code) = old_val.get("code").and_then(|v| v.as_i64()) {
+                if code != 0 {
+                    let msg = old_val.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                    errors.push(format!("旧版开票({start_date}~2026-10-19): {msg}"));
+                }
+            }
             if let Some(ci) = old_val.get("cardInfo").cloned() {
                 card_info = Some(ci);
             }
@@ -576,10 +620,20 @@ impl SinopecHttpTransport {
                 config = Some(cfg);
             }
             if let Some(arr) = old_val.get_mut("list").and_then(|v| v.as_array_mut()) {
+                for it in arr.iter_mut() {
+                    it["invoice_system"] = serde_json::json!("OLD");
+                    it["system_note"] = serde_json::json!("旧版系统 (2026-10-20前)");
+                }
                 combined_list.append(arr);
             }
         }
         if let Some(mut new_val) = new_res {
+            if let Some(code) = new_val.get("code").and_then(|v| v.as_i64()) {
+                if code != 0 {
+                    let msg = new_val.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                    errors.push(format!("新版开票(2026-10-20~{end_date}): {msg}"));
+                }
+            }
             if card_info.is_none() {
                 if let Some(ci) = new_val.get("cardInfo").cloned() {
                     card_info = Some(ci);
@@ -591,13 +645,26 @@ impl SinopecHttpTransport {
                 }
             }
             if let Some(arr) = new_val.get_mut("list").and_then(|v| v.as_array_mut()) {
+                for it in arr.iter_mut() {
+                    it["invoice_system"] = serde_json::json!("NEW");
+                    it["system_note"] = serde_json::json!("新版系统 (2026-10-20及后续)");
+                }
                 combined_list.append(arr);
             }
+        }
+
+        if combined_list.is_empty() && !errors.is_empty() {
+            return Err(AppError::new(
+                ErrorCode::InvalidRequest,
+                format!("中国石化网厅返回错误: {}", errors.join("; ")),
+            ));
         }
 
         let mut merged = serde_json::json!({
             "code": 0,
             "list": combined_list,
+            "spanning_cutover": true,
+            "cutover_date": CUTOVER_DATE,
         });
         if let Some(ci) = card_info {
             merged["cardInfo"] = ci;
@@ -605,43 +672,91 @@ impl SinopecHttpTransport {
         if let Some(cfg) = config {
             merged["config"] = cfg;
         }
+        if !errors.is_empty() {
+            merged["system_warnings"] = serde_json::json!(errors);
+        }
         Ok(Some(merged))
     }
 
-    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryTransList.json` (`merge=1`) followed by
-    /// `POST /corpgas/webjsp/invoicev2Action_createInvoice.json` and `POST /corpgas/webjsp/invoicev2Action_queryCreateInvoiceResult.json`.
-    pub async fn create_live_electronic_invoice(
+    /// Submits a single electronic invoice batch to either Old or New Sinopec system.
+    pub async fn create_live_electronic_invoice_single(
         &self,
         start_date: &str,
         end_date: &str,
         mail: &str,
+        is_new: bool,
     ) -> AppResult<serde_json::Value> {
+        let (system_name, referer_page) = if is_new {
+            ("新版开票系统 (2026-10-20及以后)", "invoicev2/createInvoiceNew.jsp")
+        } else {
+            ("旧版开票系统 (2026-10-20前)", "invoicev2/createInvoice.jsp")
+        };
+
+        tracing::info!(
+            system = system_name,
+            start_date = start_date,
+            end_date = end_date,
+            mail = mail,
+            is_new = is_new,
+            "Preparing to submit live invoice batch"
+        );
+
         let Some(sum_json) = self
-            .query_live_uninvoice_trans(start_date, end_date, "1")
+            .query_live_uninvoice_trans_single(start_date, end_date, "1", is_new)
             .await?
         else {
             return Err(AppError::new(
                 ErrorCode::SessionExpired,
-                "中国石化登录会话已过期（HTTP 390），请先点击上方获取短信验证码完成登录。",
+                "中国石化登录会话已过期（HTTP 390），请先获取短信验证码完成登录。",
             ));
         };
-        if let Some(msg) = sum_json.get("message").and_then(|v| v.as_str()) {
-            return Err(AppError::new(ErrorCode::InvalidRequest, msg.to_string()));
+
+        if let Some(code) = sum_json.get("code").and_then(|v| v.as_i64()) {
+            if code != 0 {
+                let msg = sum_json
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("网厅查询未开票记录异常");
+                tracing::error!(
+                    system = system_name,
+                    code = code,
+                    message = msg,
+                    "Pre-flight unbilled query rejected by Sinopec"
+                );
+                return Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("中国石化网厅[{system_name}]提示: {msg}"),
+                ));
+            }
         }
+
         let list = sum_json
             .get("list")
             .and_then(|v| v.as_array())
             .ok_or_else(|| {
                 AppError::new(
                     ErrorCode::NoInvoiceableRecords,
-                    "该时间段内查询无未开票记录",
+                    format!("{system_name} {start_date} 至 {end_date} 期间查询无未开票记录"),
                 )
             })?;
+
         if list.is_empty() {
-            return Err(AppError::new(
-                ErrorCode::NoInvoiceableRecords,
-                format!("{start_date} 至 {end_date} 期间没有未开票记录"),
-            ));
+            tracing::info!(
+                system = system_name,
+                start_date = start_date,
+                end_date = end_date,
+                "No unbilled transactions found in this window, skipping submission"
+            );
+            return Ok(serde_json::json!({
+                "skipped": true,
+                "system": system_name,
+                "is_new": is_new,
+                "start_date": start_date,
+                "end_date": end_date,
+                "message": format!("{system_name}在 {start_date} 至 {end_date} 期间没有待开票记录"),
+                "trans_count": 0,
+                "money": "0.00"
+            }));
         }
 
         let mut trans_ids = Vec::new();
@@ -688,25 +803,67 @@ impl SinopecHttpTransport {
             ("addrBuyFlag", "Y"),
             ("mail", mail),
         ];
+
+        tracing::info!(
+            system = system_name,
+            create_url = %create_url,
+            referer = referer_page,
+            trans_count = list.len(),
+            money = %money_str,
+            mail = mail,
+            "Posting to Sinopec createInvoice.json"
+        );
+
         let create_resp = self
             .client
             .post(&create_url)
             .header("Cookie", self.cookie_header().await)
             .header(
                 "Referer",
-                format!(
-                    "{}/corpgas/webjsp/invoicev2/createInvoice.jsp",
-                    self.base_url
-                ),
+                format!("{}/corpgas/webjsp/{}", self.base_url, referer_page),
             )
             .header("X-Requested-With", "XMLHttpRequest")
             .form(&params)
             .send()
             .await?;
+
         let create_bytes = create_resp.bytes().await?;
         let (create_cow, _, _) = encoding_rs::GB18030.decode(&create_bytes);
         let create_json: serde_json::Value = serde_json::from_str(&create_cow)
             .unwrap_or_else(|_| serde_json::json!({ "raw": create_cow }));
+
+        tracing::info!(
+            system = system_name,
+            create_response = %create_json,
+            "Received createInvoice response from Sinopec"
+        );
+
+        if let Some(code) = create_json.get("code").and_then(|v| v.as_i64()) {
+            if code != 0 {
+                let msg = create_json
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("中国石化服务端开票失败");
+                tracing::error!(
+                    system = system_name,
+                    code = code,
+                    message = msg,
+                    "Sinopec createInvoice returned error"
+                );
+                return Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("中国石化[{system_name}]开票失败 (code={}): {}", code, msg),
+                ));
+            }
+        }
+        if let Some(msg) = create_json.get("message").and_then(|v| v.as_str()) {
+            if !msg.is_empty() && (msg.contains("失败") || msg.contains("错误")) {
+                return Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("中国石化[{system_name}]开票失败: {}", msg),
+                ));
+            }
+        }
 
         let order_id = create_json
             .get("invoiceNo")
@@ -716,7 +873,7 @@ impl SinopecHttpTransport {
 
         let mut result_json = serde_json::json!({});
         if !order_id.is_empty() {
-            tokio::time::sleep(Duration::from_millis(1200)).await;
+            tokio::time::sleep(Duration::from_millis(1500)).await;
             let res_url = format!(
                 "{}/corpgas/webjsp/invoicev2Action_queryCreateInvoiceResult.json",
                 self.base_url
@@ -727,10 +884,7 @@ impl SinopecHttpTransport {
                 .header("Cookie", self.cookie_header().await)
                 .header(
                     "Referer",
-                    format!(
-                        "{}/corpgas/webjsp/invoicev2/createInvoice.jsp",
-                        self.base_url
-                    ),
+                    format!("{}/corpgas/webjsp/{}", self.base_url, referer_page),
                 )
                 .header("X-Requested-With", "XMLHttpRequest")
                 .form(&[("invoiceNo", order_id.as_str())])
@@ -740,21 +894,99 @@ impl SinopecHttpTransport {
                 if let Ok(b) = r.bytes().await {
                     let (c, _, _) = encoding_rs::GB18030.decode(&b);
                     result_json = serde_json::from_str(&c).unwrap_or_default();
+                    tracing::info!(
+                        system = system_name,
+                        invoice_no = %order_id,
+                        poll_result = %result_json,
+                        "Polled invoice creation result"
+                    );
                 }
             }
         }
 
         Ok(serde_json::json!({
+            "skipped": false,
+            "system": system_name,
+            "is_new": is_new,
             "start_date": start_date,
             "end_date": end_date,
             "money": money_str,
             "money_fen": total_fen,
+            "trans_count": list.len(),
+            "invoice_no": order_id,
             "create_response": create_json,
             "invoice_result": result_json
         }))
     }
 
-    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryPlainList.json` to list issued electronic invoices.
+    /// Calls Sinopec invoice creation endpoints with automatic dual-cutover splitting (2026-10-20).
+    pub async fn create_live_electronic_invoice(
+        &self,
+        start_date: &str,
+        end_date: &str,
+        mail: &str,
+    ) -> AppResult<serde_json::Value> {
+        const CUTOVER_DATE: &str = "2026-10-20";
+        if end_date < CUTOVER_DATE {
+            return self
+                .create_live_electronic_invoice_single(start_date, end_date, mail, false)
+                .await;
+        }
+        if start_date >= CUTOVER_DATE {
+            return self
+                .create_live_electronic_invoice_single(start_date, end_date, mail, true)
+                .await;
+        }
+
+        tracing::info!(
+            start_date,
+            end_date,
+            cutover = CUTOVER_DATE,
+            "Spanning invoice cutover 2026-10-20: submitting Batch 1 (Old System, {} ~ 2026-10-19) and Batch 2 (New System, 2026-10-20 ~ {})",
+            start_date,
+            end_date
+        );
+
+        let mut batches = Vec::new();
+        let mut total_submitted_fen: i64 = 0;
+        let mut total_trans_count = 0;
+
+        let res_old = self
+            .create_live_electronic_invoice_single(start_date, "2026-10-19", mail, false)
+            .await?;
+        if !res_old.get("skipped").and_then(|v| v.as_bool()).unwrap_or(false) {
+            total_submitted_fen += res_old.get("money_fen").and_then(|v| v.as_i64()).unwrap_or(0);
+            total_trans_count += res_old.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
+        }
+        batches.push(res_old);
+
+        let res_new = self
+            .create_live_electronic_invoice_single(CUTOVER_DATE, end_date, mail, true)
+            .await?;
+        if !res_new.get("skipped").and_then(|v| v.as_bool()).unwrap_or(false) {
+            total_submitted_fen += res_new.get("money_fen").and_then(|v| v.as_i64()).unwrap_or(0);
+            total_trans_count += res_new.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
+        }
+        batches.push(res_new);
+
+        if total_trans_count == 0 {
+            return Err(AppError::new(
+                ErrorCode::NoInvoiceableRecords,
+                format!("{start_date} 至 {end_date} 期间（旧版与新版）均无待开票记录"),
+            ));
+        }
+
+        Ok(serde_json::json!({
+            "spanning_cutover": true,
+            "total_batches": batches.len(),
+            "total_trans_count": total_trans_count,
+            "total_money": crate::sinopec::models::format_fen_yuan(total_submitted_fen),
+            "total_money_fen": total_submitted_fen,
+            "batches": batches
+        }))
+    }
+
+    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryInvoiceBill.json` to list issued electronic invoices.
     pub async fn query_live_plain_invoices(
         &self,
         start_date: &str,
@@ -769,36 +1001,52 @@ impl SinopecHttpTransport {
         }
         let card_no = self.resolve_default_card_no().await?;
         let url = format!(
-            "{}/corpgas/webjsp/invoicev2Action_queryPlainList.json",
+            "{}/corpgas/webjsp/invoicev2Action_queryInvoiceBill.json",
             self.base_url
         );
         let params = [
             ("cardNo", card_no.as_str()),
             ("startDate", start_date),
             ("endDate", end_date),
-            ("pageNo", "1"),
+            ("queryType", "1"),
         ];
+        tracing::info!(
+            url = %url,
+            card_no = %card_no,
+            start_date = start_date,
+            end_date = end_date,
+            "Querying Sinopec digital invoice bill archives"
+        );
         let resp = self
             .client
             .post(&url)
             .header("Cookie", self.cookie_header().await)
             .header(
                 "Referer",
-                format!("{}/corpgas/webjsp/invoicev2/queryList.jsp", self.base_url),
+                format!("{}/corpgas/webjsp/invoicev2/queryInvoiceBill.jsp", self.base_url),
             )
             .header("X-Requested-With", "XMLHttpRequest")
             .form(&params)
             .send()
             .await?;
         if resp.status().as_u16() == 390 {
+            tracing::warn!("queryInvoiceBill returned HTTP 390 session expired");
             return Ok(None);
         }
         let bytes = resp.bytes().await?;
         let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
-        serde_json::from_str(&cow)
-            .ok()
-            .map(Some)
-            .ok_or_else(|| AppError::new(ErrorCode::ApiContractChanged, "Invalid plain list JSON"))
+        if cow.contains("default_corp.html") || cow.contains("数据错误") {
+            tracing::warn!("queryInvoiceBill returned login redirect or DataError page");
+            return Ok(None);
+        }
+        let parsed: serde_json::Value = serde_json::from_str(&cow)
+            .map_err(|e| AppError::new(ErrorCode::ApiContractChanged, format!("Invalid invoice bill JSON: {e}")))?;
+        tracing::info!(
+            code = parsed.get("code").and_then(|v| v.as_i64()).unwrap_or(0),
+            detail_count = parsed.get("detailList").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0),
+            "Received digital invoice bill archives from Sinopec"
+        );
+        Ok(Some(parsed))
     }
 
     /// Calls `POST /corpgas/webjsp/billQueryAction_chargeDetail.json` to query fuel card recharge history.

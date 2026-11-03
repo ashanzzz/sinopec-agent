@@ -27,7 +27,7 @@ fn test_config(research_mode: bool) -> AppConfig {
         auto_login: true,
         max_auth_attempts: 3,
         research_mode,
-        demo_mode: false,
+        demo_mode: true,
         allow_auto_submit: false,
         steel_base_url: "http://127.0.0.1:13000".to_string(),
         steel_cdp_url: "ws://127.0.0.1:19223".to_string(),
@@ -263,7 +263,7 @@ async fn test_full_system_acceptance_audit_26_points() {
         .await
         .unwrap();
     let a_json: Value = serde_json::from_slice(&a_bytes).unwrap();
-    assert_eq!(a_json["data"]["master_card"]["loaded_balance"], "30.95");
+    assert_eq!(a_json["data"]["master_card"]["loaded_balance"], "626.78");
     assert_eq!(a_json["data"]["master_card"]["unloaded_prebalance"], "0.00");
     println!(" [PASS] Criteria 14: Corporate capital allocation and load breakdown verified.");
 

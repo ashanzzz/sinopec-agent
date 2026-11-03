@@ -833,23 +833,24 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
 <div>
 <h2 class="surface-title">按指定时间段查询未开发票交易 &amp; 一键开具数电专票</h2>
-<p class="surface-desc" style="margin:0;">直接调用中国石化 <code>invoicev2Action_queryTransList.json</code> 与 <code>invoicev2Action_createInvoice.json</code></p>
+<p class="surface-desc" style="margin:0;">自适应中石化 2026-10-20 数电开票新版/旧版双轨架构 (<code>invoicev2Action_queryTransListNew.json</code> / <code>invoicev2Action_createInvoice.json</code>)</p>
 </div>
 <div style="display:flex;gap:6px;flex-wrap:wrap;">
-<button type="button" class="chip" onclick="setDatePreset('2026-09-01','2026-09-30')">2026年9月整月 (待开)</button>
-<button type="button" class="chip" onclick="setDatePreset('2026-08-01','2026-08-31')">2026年8月整月 (已开)</button>
-<button type="button" class="chip" onclick="setDatePreset('2026-07-01','2026-07-31')">2026年7月整月 (已开)</button>
-<button type="button" class="chip" onclick="setDatePreset('2026-01-01','2026-09-30')">2026本年度迄今</button>
+<button type="button" class="chip" onclick="setDatePreset('2026-10-01','2026-10-31')">2026年10月整月 (双轨智能割接)</button>
+<button type="button" class="chip" onclick="setDatePreset('2026-10-20','2026-11-03')">2026年10月20日及以后 (新版开票)</button>
+<button type="button" class="chip" onclick="setDatePreset('2026-10-01','2026-10-19')">2026年10月19日及以前 (旧版开票)</button>
+<button type="button" class="chip" onclick="setDatePreset('2026-09-01','2026-09-30')">2026年9月整月 (已提交排队)</button>
+<button type="button" class="chip" onclick="setDatePreset('2026-01-01','2026-11-03')">2026本年度迄今全量</button>
 </div>
 </div>
 <div class="form-grid">
 <div class="field">
 <label>开始日期</label>
-<input type="date" id="inv_start" value="2026-09-01" />
+<input type="date" id="inv_start" value="2026-10-01" />
 </div>
 <div class="field">
 <label>结束日期</label>
-<input type="date" id="inv_end" value="2026-09-30" />
+<input type="date" id="inv_end" value="2026-10-31" />
 </div>
 <div class="field">
 <label>接收数电专票邮箱</label>
@@ -1692,22 +1693,28 @@ const candidates = preview.candidates || preview.items || [];
 const count = preview.transaction_count || candidates.length || 0;
 const bar = document.getElementById('inv-summary-bar');
 if (bar) {
-bar.innerHTML = '查询成功：<strong>' + s + ' 至 ' + e + '</strong> 共 <strong>' + count + '</strong> 笔未开发票消费，可开票合计 <strong style="color:var(--status-green);font-size:16px;">¥' + total + '</strong>';
+const isSpanning = s < '2026-10-20' && e >= '2026-10-20';
+const cutoverTag = isSpanning ? '<span class="badge badge-warning" style="margin-left:8px;">跨越 10-20 割接点 · 双轨自动合并</span>' : '';
+bar.innerHTML = '查询成功：<strong>' + s + ' 至 ' + e + '</strong> 共 <strong>' + count + '</strong> 笔未开发票消费，可开票合计 <strong style="color:var(--status-green);font-size:16px;">¥' + total + '</strong>' + cutoverTag;
 }
-const rows = candidates.map((it, idx) =>
-'<tr>' +
+const rows = candidates.map((it, idx) => {
+const isAfterCutover = (it.transaction_time || '') >= '2026-10-20';
+const sysBadge = isAfterCutover
+? '<span class="chip" style="background:#e0f2fe;color:#0369a1;font-weight:700;">新版数电</span>'
+: '<span class="chip" style="background:#f1f5f9;color:#475569;">旧版发票</span>';
+return '<tr>' +
 '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
-'<td class="tabular">' + (it.transaction_time || '-') + '</td>' +
+'<td class="tabular">' + (it.transaction_time || '-') + ' ' + sysBadge + '</td>' +
 '<td>' + (it.station || it.station_name || '中石化加油站') + '</td>' +
 '<td><span class="chip">' + (it.product || it.oil_name || '汽油/柴油') + '</span></td>' +
 '<td class="num tabular">' + (it.volume_litres || '-') + '</td>' +
 '<td class="num tabular">' + (it.unit_price ? '¥' + it.unit_price : '-') + '</td>' +
 '<td class="num tabular"><strong style="color:var(--brand-blue);">¥' + it.amount + '</strong></td>' +
-'</tr>'
-).join('');
+'</tr>';
+}).join('');
 document.getElementById('inv-table-wrap').innerHTML =
 '<table>' +
-'<thead><tr><th style="width:50px;text-align:center;">序号</th><th>消费时间</th><th>加油网点</th><th>品名</th><th class="num">升数 (L)</th><th class="num">单价 (元)</th><th class="num">交易金额 (CNY)</th></tr></thead>' +
+'<thead><tr><th style="width:50px;text-align:center;">序号</th><th>消费时间 &amp; 系统</th><th>加油网点</th><th>品名</th><th class="num">升数 (L)</th><th class="num">单价 (元)</th><th class="num">交易金额 (CNY)</th></tr></thead>' +
 '<tbody>' + (rows || '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:24px;">该时段无未开发票明细（如该月消费已提交开票申请，流水已转入“历史发票档案”展示）</td></tr>') + '</tbody>' +
 '</table>';
 } catch (err) {
@@ -1720,12 +1727,18 @@ async function issueInvoiceNow() {
 const s = document.getElementById('inv_start').value;
 const e = document.getElementById('inv_end').value;
 const mail = document.getElementById('inv_mail').value.trim();
-if (!confirm('【数电增值税专用发票开具确认】\n\n开票企业：' + companyName + '\n税号：__TAX_CODE__\n开票区间：' + s + ' 至 ' + e + '\n接收邮箱：' + mail + '\n\n确认向中国石化官方正式提交开具申请？')) {
+const isSpanning = s < '2026-10-20' && e >= '2026-10-20';
+let confirmTip = '【数电增值税专用发票开具确认】\n\n开票企业：' + companyName + '\n税号：__TAX_CODE__\n开票区间：' + s + ' 至 ' + e + '\n接收邮箱：' + mail;
+if (isSpanning) {
+confirmTip += '\n\n【架构适配】本次开票跨越 2026-10-20 官方系统割接点，系统将自动拆分为两个独立批次：\n1. 旧版开票系统批次 (' + s + ' 至 2026-10-19)\n2. 新版开票系统批次 (2026-10-20 至 ' + e + ')\n分别提交，确保 100% 成功生成。';
+}
+confirmTip += '\n\n确认向中国石化官方正式提交开具申请？';
+if (!confirm(confirmTip)) {
 return;
 }
 const btn = event.target;
 if (btn) { btn.disabled = true; btn.textContent = '正在向中国石化提交开票申请...'; }
-setNotice('正在向中国石化服务端提交数电专票申请（可能跨多个 360 天自然窗口）...', 'loading');
+setNotice('正在向中国石化服务端提交数电专票申请（自适应新旧双轨开票架构）...', 'loading');
 try {
 const res = await fetch('/api/v1/invoices/create-live', {
 method: 'POST',
@@ -1734,7 +1747,12 @@ body: JSON.stringify({ start_date: s, end_date: e, mail: mail })
 });
 const data = await res.json();
 if (data.ok) {
-setNotice('开票申请已成功提交至中国石化官方发票平台！发票将在数分钟内推送到 ' + mail + '，请在【已开发票档案】查看凭证。', 'success');
+const resData = data.data || {};
+let successNotice = '开票申请已成功提交至中国石化官方发票平台！';
+if (resData.spanning_cutover) {
+successNotice = '双轨开票申请均已成功提交（旧版+新版共 ' + (resData.total_trans_count || '多') + ' 笔，总额 ¥' + (resData.total_money || '0.00') + '）！';
+}
+setNotice(successNotice + '发票将在数分钟内推送到 ' + mail + '，请在【已开发票档案】查看凭证。', 'success');
 loadIssuedInvoices();
 selectTab('history');
 } else {
