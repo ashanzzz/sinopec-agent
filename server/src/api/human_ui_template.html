@@ -1241,21 +1241,34 @@ let smsCountdownTimer = null;
 let companyName = '天津祺富机械加工有限公司';
 // Card Remarks Persistence
 const defaultCardRemarks = {
-'1000111200006330729': '企业主卡 · 孟祥山',
-'1000111200004649423': '副卡1 · 车队1号',
-'1000111200006778459': '副卡2 · 车队2号',
-'1000111200006778807': '副卡3 · 工程3号'
+'1000111200006330729': '孟祥山',
+'1000111200004649423': '李佳宁',
+'1000111200006778459': '老板',
+'1000111200006778807': '车间'
 };
 function getCardRemarks() {
 try {
 const stored = localStorage.getItem('sinopec_card_remarks');
-if (stored) return Object.assign({}, defaultCardRemarks, JSON.parse(stored));
+if (stored) {
+const parsed = JSON.parse(stored);
+let migrated = false;
+for (const [k, v] of Object.entries(defaultCardRemarks)) {
+if (!parsed[k] || parsed[k].includes('工程3号') || parsed[k].includes('车队1号') || parsed[k].includes('车队2号') || parsed[k].includes('企业主卡 · 孟祥山')) {
+parsed[k] = v;
+migrated = true;
+}
+}
+if (migrated) {
+try { localStorage.setItem('sinopec_card_remarks', JSON.stringify(parsed)); } catch (e) {}
+}
+return Object.assign({}, defaultCardRemarks, parsed);
+}
 } catch (e) {}
 return Object.assign({}, defaultCardRemarks);
 }
 function getCardRemark(cardNo) {
 const remarks = getCardRemarks();
-return remarks[cardNo] || (cardNo === '1000111200006330729' ? '企业主卡' : '单位副卡');
+return remarks[cardNo] || defaultCardRemarks[cardNo] || (cardNo === '1000111200006330729' ? '孟祥山' : '单位副卡');
 }
 let activeEditingCardNo = null;
 function openEditRemarkModal(cardNo) {
@@ -1267,7 +1280,7 @@ const holderEl = document.getElementById('modal-card-holder');
 const input = document.getElementById('modal-remark-input');
 if (typeEl) typeEl.textContent = cardNo === '1000111200006330729' ? '单位多用户主卡' : '单位副卡';
 if (noEl) noEl.textContent = cardNo;
-if (holderEl) holderEl.textContent = '孟祥山';
+if (holderEl) holderEl.textContent = defaultCardRemarks[cardNo] || '孟祥山';
 if (input) {
 input.value = getCardRemark(cardNo);
 setTimeout(() => input.focus(), 50);
@@ -1868,10 +1881,10 @@ let cachedAllocationData = null;
 let currentFocusCard = 'all';
 let currentFundSubTab = 'consume';
 const cardDirectory = [
-{ id: '1000111200006330729', type: '主卡', typeLabel: '单位主卡', holder: '孟祥山', masked: '****0729', isMaster: true },
-{ id: '1000111200004649423', type: '副卡', typeLabel: '单位副卡1', holder: '孟祥山', masked: '****9423', isMaster: false },
-{ id: '1000111200006778459', type: '副卡', typeLabel: '单位副卡2', holder: '孟祥山', masked: '****8459', isMaster: false },
-{ id: '1000111200006778807', type: '副卡', typeLabel: '单位副卡3', holder: '孟祥山', masked: '****8807', isMaster: false }
+{ id: '1000111200006330729', type: '主卡', typeLabel: '单位主卡', holder: '孟祥山', alias: '孟祥山', masked: '****0729', isMaster: true },
+{ id: '1000111200004649423', type: '副卡', typeLabel: '单位副卡', holder: '李佳宁', alias: '李佳宁', masked: '****9423', isMaster: false },
+{ id: '1000111200006778459', type: '副卡', typeLabel: '单位副卡', holder: '老板', alias: '老板', masked: '****8459', isMaster: false },
+{ id: '1000111200006778807', type: '副卡', typeLabel: '单位副卡', holder: '车间', alias: '车间', masked: '****8807', isMaster: false }
 ];
 function renderCardMatrix() {
 const container = document.getElementById('card-matrix-container');
@@ -2019,7 +2032,7 @@ if (badgeEl) { badgeEl.textContent = '全部卡片总览模式'; badgeEl.classNa
 if (statusBadgeEl) { statusBadgeEl.textContent = '4 张正常卡'; statusBadgeEl.className = 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '包含 1 张单位多用户主卡 + 3 张已激活单位副卡';
 const unl = sum.total_unloaded || '0.00';
-if (descEl) descEl.textContent = '单位名下共 4 张卡片，芯片总可用余额 ¥' + (sum.total_loaded || '0.00') + (parseFloat(unl) > 0 ? ('，在途待圈存资金 ¥' + unl + '（副卡8807待圈存）。') : '，无在途待圈存资金。');
+if (descEl) descEl.textContent = '单位名下共 4 张卡片，芯片总可用余额 ¥' + (sum.total_loaded || '0.00') + (parseFloat(unl) > 0 ? ('，在途待圈存资金 ¥' + unl + '（车间 ****8807 待圈存）。') : '，无在途待圈存资金。');
 if (editBtn) editBtn.style.display = 'none';
 if (statLoaded) statLoaded.textContent = '¥' + (sum.total_loaded || '0.00');
 if (statUnloaded) statUnloaded.textContent = '¥' + unl;
@@ -2049,7 +2062,7 @@ if (statConsume) statConsume.textContent = (cardLedger.consume_count || 0) + ' �
 if (badgeEl) { badgeEl.textContent = cardObj.typeLabel; badgeEl.className = 'badge badge-success'; }
 if (statusBadgeEl) { statusBadgeEl.textContent = hasUnloaded ? '正常激活卡 · 存在待圈存' : '正常激活卡 · 资金已圈存'; statusBadgeEl.className = hasUnloaded ? 'badge badge-warning' : 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '副卡 ' + cardNo + ' · ' + remark;
-if (descEl) descEl.textContent = '单位绑定副卡（持卡人: ' + cardObj.holder + '），芯片余额 ¥' + loaded + (hasUnloaded ? ('，尚有 ¥' + unloaded + ' 预分配待圈存资金（需在加油站自助机插卡写入芯片）') : '，无待圈存资金') + '，累计分配资金 ¥' + totalAlloc + '。';
+if (descEl) descEl.textContent = '单位绑定副卡（使用人: ' + (remark || cardObj.holder) + '），芯片余额 ¥' + loaded + (hasUnloaded ? ('，尚有 ¥' + unloaded + ' 预分配待圈存资金（需在加油站自助机插卡写入芯片）') : '，无待圈存资金') + '，累计分配资金 ¥' + totalAlloc + '。';
 if (statLoaded) statLoaded.textContent = '¥' + loaded;
 if (statUnloaded) statUnloaded.textContent = '¥' + unloaded;
 if (statAlloc) statAlloc.textContent = '¥' + totalAlloc;

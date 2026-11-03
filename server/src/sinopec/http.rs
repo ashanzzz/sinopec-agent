@@ -1411,6 +1411,20 @@ impl SinopecHttpTransport {
 
     /// Parses full corporate allocation, pre-allocation, loaded chip balance, and un-loaded pre-balance
     /// from live endpoints: `billQueryAction_queryBalance.json`, `preallocate_indexJson.json`, and `yuFenPeiLog.json`.
+    pub fn get_card_alias(card_no: &str) -> &'static str {
+        if card_no.ends_with("8807") {
+            "车间"
+        } else if card_no.ends_with("9423") {
+            "李佳宁"
+        } else if card_no.ends_with("8459") {
+            "老板"
+        } else if card_no.ends_with("0729") {
+            "孟祥山"
+        } else {
+            "副卡"
+        }
+    }
+
     pub async fn query_allocation_breakdown(&self) -> AppResult<serde_json::Value> {
         let master_card_no = self
             .resolve_default_card_no()
@@ -1471,10 +1485,12 @@ impl SinopecHttpTransport {
                 ),
             );
 
+            let v_alias = Self::get_card_alias(v_card_no);
             parsed_vice_cards.push(serde_json::json!({
                 "card_no": v_card_no,
                 "masked_card_no": crate::research::Redactor::mask_card_number(v_card_no),
                 "holder_name": v_holder,
+                "card_alias": v_alias,
                 "card_status": v_status,
                 "loaded_balance": crate::sinopec::models::format_fen_yuan(c_bal_fen),
                 "loaded_balance_fen": c_bal_fen,
@@ -1503,10 +1519,12 @@ impl SinopecHttpTransport {
                     .and_then(|v| v.as_str())
                     .unwrap_or("激活卡")
                     .trim();
+                let v_alias = Self::get_card_alias(v_card_no);
                 parsed_vice_cards.push(serde_json::json!({
                     "card_no": v_card_no,
                     "masked_card_no": crate::research::Redactor::mask_card_number(v_card_no),
                     "holder_name": v_holder,
+                    "card_alias": v_alias,
                     "card_status": v_status,
                     "loaded_balance": "0.00",
                     "loaded_balance_fen": 0,
@@ -1537,11 +1555,13 @@ impl SinopecHttpTransport {
                 .trim();
             let a_amt_fen = crate::sinopec::parser::SinopecParser::parse_fen(a.get("amount"));
             total_allocated_to_vices_fen += a_amt_fen;
+            let a_alias = Self::get_card_alias(a_card_no);
             parsed_allocs.push(serde_json::json!({
                 "time": a_time,
                 "card_no": a_card_no,
                 "masked_card_no": crate::research::Redactor::mask_card_number(a_card_no),
                 "holder_name": a_holder,
+                "card_alias": a_alias,
                 "amount": crate::sinopec::models::format_fen_yuan(a_amt_fen),
                 "amount_fen": a_amt_fen,
                 "card_level": "副卡"
@@ -1574,6 +1594,7 @@ impl SinopecHttpTransport {
             serde_json::json!({
                 "card_no": master_card_no,
                 "card_type": "主卡",
+                "card_alias": "孟祥山",
                 "card_status": "正常卡",
                 "holder": "孟祥山",
                 "loaded_balance": crate::sinopec::models::format_fen_yuan(primary_loaded_fen),
@@ -1634,11 +1655,13 @@ impl SinopecHttpTransport {
 
             let v_allocated_fen = v_qc_total_fen + pre_bal_fen;
             total_vices_qc_fen += v_qc_total_fen;
+            let v_alias = Self::get_card_alias(v_card_no);
             cards_ledger.insert(
                 v_card_no.to_string(),
                 serde_json::json!({
                     "card_no": v_card_no,
                     "card_type": "单位副卡",
+                    "card_alias": v_alias,
                     "card_status": v_status,
                     "holder": v_holder,
                     "loaded_balance": crate::sinopec::models::format_fen_yuan(c_bal_fen),
@@ -1673,6 +1696,7 @@ impl SinopecHttpTransport {
                 "card_no": master_card_no,
                 "masked_card_no": crate::research::Redactor::mask_card_number(&master_card_no),
                 "holder": "孟祥山",
+                "card_alias": "孟祥山",
                 "card_status": "正常卡",
                 "loaded_balance": crate::sinopec::models::format_fen_yuan(primary_loaded_fen),
                 "loaded_balance_fen": primary_loaded_fen,
