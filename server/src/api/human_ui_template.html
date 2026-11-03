@@ -904,18 +904,18 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 </div>
 <div class="kpi-card" style="border-color:#93c5fd;">
 <div class="kpi-label">主卡已圈存芯片余额 (可直接加油)</div>
-<div class="kpi-val tabular" id="kpi-master-loaded" style="color:#2563eb;">¥30.95</div>
+<div class="kpi-val tabular" id="kpi-master-loaded" style="color:#2563eb;">¥626.78</div>
 <div class="kpi-meta" id="kpi-master-meta">主卡 10001112****0729 · 孟祥山 (正常卡)</div>
 </div>
-<div class="kpi-card">
-<div class="kpi-label">全卡在途未圈存金额 (待圈存)</div>
-<div class="kpi-val tabular" id="kpi-unloaded-balance" style="color:#16a34a;">¥0.00</div>
-<div class="kpi-meta">全卡圈存完成率 100%，无滞留未圈存资金</div>
-</div>
 <div class="kpi-card" style="border-color:#fed7aa;">
-<div class="kpi-label">企业副卡总览</div>
-<div class="kpi-val tabular" id="kpi-vice-summary" style="font-size:16px;color:#d97706;">3 张已激活副卡 · 累计划拨 ¥20,000.00</div>
-<div class="kpi-meta">已全量接入中石化副卡与预分配日志查询</div>
+<div class="kpi-label">全卡在途待圈存金额 (待圈存)</div>
+<div class="kpi-val tabular" id="kpi-unloaded-balance" style="color:#d97706;">¥3,000.00</div>
+<div class="kpi-meta" id="kpi-unloaded-meta">副卡 8807 存在 ¥3,000.00 待圈存资金</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label">企业副卡芯片总额 (3张卡)</div>
+<div class="kpi-val tabular" id="kpi-vice-summary" style="font-size:18px;color:#16a34a;">¥6,629.93</div>
+<div class="kpi-meta">3 张副卡已圈存可用余额合计</div>
 </div>
 </div>
 <!-- Card Matrix Hub (Grid of all cards with remarks) -->
@@ -951,13 +951,17 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 </button>
 </div>
 <p id="focus-card-desc" style="font-size:13px;color:var(--text-secondary);margin:0;max-width:720px;line-height:1.5;">
-单位名下共 4 张卡片，历史累计预分配资金已 100% 圈存入芯片并完成加油消费结清，当前在途未圈存资金为 ¥0.00。
+单位名下共 4 张卡片，芯片总可用余额 ¥7,256.71，副卡 8807 存在 ¥3,000.00 待圈存资金。
 </p>
 </div>
 <div style="display:flex;gap:14px;background:#f8fafc;padding:10px 16px;border-radius:6px;border:1px solid #e2e8f0;flex-wrap:wrap;">
 <div style="text-align:right;">
 <div style="font-size:11px;color:var(--text-muted);font-weight:600;">已圈存芯片余额</div>
-<div id="focus-stat-loaded" class="tabular" style="font-size:18px;font-weight:800;color:var(--brand-blue);">¥30.95</div>
+<div id="focus-stat-loaded" class="tabular" style="font-size:18px;font-weight:800;color:var(--brand-blue);">¥7,256.71</div>
+</div>
+<div style="text-align:right;border-left:1px solid #cbd5e1;padding-left:14px;">
+<div style="font-size:11px;color:var(--text-muted);font-weight:600;">待圈存预分配</div>
+<div id="focus-stat-unloaded" class="tabular" style="font-size:18px;font-weight:800;color:#d97706;">¥3,000.00</div>
 </div>
 <div style="text-align:right;border-left:1px solid #cbd5e1;padding-left:14px;">
 <div style="font-size:11px;color:var(--text-muted);font-weight:600;">累计划拨下发</div>
@@ -1805,9 +1809,13 @@ const container = document.getElementById('card-matrix-container');
 if (!container) return;
 const ledger = cachedAllocationData?.cards_ledger || {};
 const mc = cachedAllocationData?.master_card || {};
+const sum = cachedAllocationData?.summary || {};
 let html = '';
 // Card 0: All Cards Overview
 const isAllActive = currentFocusCard === 'all';
+const totalLoaded = sum.total_loaded || '0.00';
+const totalUnloaded = sum.total_unloaded || '0.00';
+const hasTotalUnloaded = parseFloat(totalUnloaded) > 0;
 html +=
 '<div class="card-matrix-item ' + (isAllActive ? 'active' : '') + '" onclick="switchFocusCard(\'all\')">' +
 '<div>' +
@@ -1818,17 +1826,23 @@ html +=
 '<div style="font-size:14px;font-weight:800;color:var(--text-primary);margin-bottom:2px;">全部卡片汇总大盘</div>' +
 '<div style="font-size:12px;color:var(--text-muted);">1 主卡 + 3 已激活副卡</div>' +
 '</div>' +
-'<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:baseline;">' +
-'<span style="font-size:11px;color:var(--text-muted);">芯片可用余额:</span>' +
-'<span class="tabular" style="font-size:14px;font-weight:800;color:var(--brand-blue);">¥' + (mc.loaded_balance || '30.95') + '</span>' +
+'<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:baseline;">' +
+'<span style="font-size:11px;color:var(--text-muted);">芯片可用总额:</span>' +
+'<span class="tabular" style="font-size:13px;font-weight:800;color:var(--brand-blue);">¥' + totalLoaded + '</span>' +
+'</div>' +
+'<div style="margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;">' +
+'<span style="font-size:11px;color:var(--text-muted);">待圈存总额:</span>' +
+'<span class="tabular" style="font-size:12px;font-weight:700;color:' + (hasTotalUnloaded ? '#d97706' : 'var(--text-muted)') + ';">¥' + totalUnloaded + '</span>' +
 '</div>' +
 '</div>';
 // Master Card & Vice Cards
 cardDirectory.forEach(c => {
 const isActive = currentFocusCard === c.id;
 const remark = getCardRemark(c.id);
-const balance = c.isMaster ? (mc.loaded_balance || '30.95') : '0.00 (已结清)';
-const balanceColor = c.isMaster ? 'var(--brand-blue)' : 'var(--text-muted)';
+const cardLedger = ledger[c.id] || {};
+const loadedBal = cardLedger.loaded_balance || (c.isMaster ? mc.loaded_balance : '0.00') || '0.00';
+const unloadedBal = cardLedger.unloaded_prebalance || (c.isMaster ? mc.unloaded_prebalance : '0.00') || '0.00';
+const hasUnloaded = parseFloat(unloadedBal) > 0;
 const badgeClass = c.isMaster ? 'badge-primary' : 'badge-success';
 html +=
 '<div class="card-matrix-item ' + (isActive ? 'active' : '') + '" onclick="switchFocusCard(\'' + c.id + '\')">' +
@@ -1843,9 +1857,13 @@ html +=
 '<div style="font-size:13px;font-weight:700;color:var(--text-primary);font-family:monospace;">' + c.masked + '</div>' +
 '<div style="font-size:12px;font-weight:600;color:#1e40af;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + remark + '">' + remark + '</div>' +
 '</div>' +
-'<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:baseline;">' +
+'<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:baseline;">' +
 '<span style="font-size:11px;color:var(--text-muted);">芯片余额:</span>' +
-'<span class="tabular" style="font-size:13px;font-weight:700;color:' + balanceColor + ';">¥' + balance + '</span>' +
+'<span class="tabular" style="font-size:13px;font-weight:700;color:var(--brand-blue);">¥' + loadedBal + '</span>' +
+'</div>' +
+'<div style="margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;">' +
+'<span style="font-size:11px;color:var(--text-muted);">待圈存:</span>' +
+'<span class="tabular" style="font-size:12px;font-weight:700;color:' + (hasUnloaded ? '#d97706' : 'var(--text-muted)') + ';">¥' + unloadedBal + '</span>' +
 '</div>' +
 '</div>';
 });
@@ -1890,43 +1908,52 @@ const titleEl = document.getElementById('focus-card-title');
 const descEl = document.getElementById('focus-card-desc');
 const editBtn = document.getElementById('btn-edit-current-remark');
 const statLoaded = document.getElementById('focus-stat-loaded');
+const statUnloaded = document.getElementById('focus-stat-unloaded');
 const statAlloc = document.getElementById('focus-stat-alloc');
 const statQuancun = document.getElementById('focus-stat-quancun');
 const statConsume = document.getElementById('focus-stat-consume');
 const b = cachedAllocationData;
 const mc = b?.master_card || {};
 const ledger = b?.cards_ledger || {};
+const sum = b?.summary || {};
 if (cardNo === 'all') {
 if (badgeEl) { badgeEl.textContent = '全部卡片总览模式'; badgeEl.className = 'badge badge-primary'; }
 if (statusBadgeEl) { statusBadgeEl.textContent = '4 张正常卡'; statusBadgeEl.className = 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '包含 1 张单位多用户主卡 + 3 张已激活单位副卡';
-if (descEl) descEl.textContent = '单位名下共 4 张卡片，历史累计预分配资金已 100% 圈存入芯片并完成加油消费结清，当前在途未圈存资金为 ¥0.00。';
+const unl = sum.total_unloaded || '0.00';
+if (descEl) descEl.textContent = '单位名下共 4 张卡片，芯片总可用余额 ¥' + (sum.total_loaded || '0.00') + (parseFloat(unl) > 0 ? ('，在途待圈存资金 ¥' + unl + '（副卡8807待圈存）。') : '，无在途待圈存资金。');
 if (editBtn) editBtn.style.display = 'none';
-if (statLoaded) statLoaded.textContent = '¥' + (mc.loaded_balance || '30.95');
-if (statAlloc) statAlloc.textContent = '¥' + (b?.summary?.total_allocated_to_vices || '20,000.00');
+if (statLoaded) statLoaded.textContent = '¥' + (sum.total_loaded || '0.00');
+if (statUnloaded) statUnloaded.textContent = '¥' + unl;
+if (statAlloc) statAlloc.textContent = '¥' + (sum.total_allocated_to_vices || '20,000.00');
 if (statQuancun) statQuancun.textContent = '28 笔';
 if (statConsume) statConsume.textContent = '197 笔';
 } else {
 const cardObj = cardDirectory.find(c => c.id === cardNo) || { id: cardNo, holder: '孟祥山' };
 const remark = getCardRemark(cardNo);
 const cardLedger = ledger[cardNo] || {};
+const loaded = cardLedger.loaded_balance || (cardObj.isMaster ? mc.loaded_balance : '0.00') || '0.00';
+const unloaded = cardLedger.unloaded_prebalance || (cardObj.isMaster ? mc.unloaded_prebalance : '0.00') || '0.00';
+const hasUnloaded = parseFloat(unloaded) > 0;
 if (editBtn) editBtn.style.display = 'inline-flex';
 if (cardObj.isMaster) {
 if (badgeEl) { badgeEl.textContent = '单位多用户主卡'; badgeEl.className = 'badge badge-primary'; }
 if (statusBadgeEl) { statusBadgeEl.textContent = '正常卡 (发卡行: 空港经四路站1292)'; statusBadgeEl.className = 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '主卡 ' + cardNo + ' · ' + remark;
-if (descEl) descEl.textContent = '企业主卡，负责企业资金池下发划拨、增值税专票集中开具及日常加油消费。当前芯片余额 ¥30.95，无任何待圈存资金。';
-if (statLoaded) statLoaded.textContent = '¥' + (mc.loaded_balance || '30.95');
+if (descEl) descEl.textContent = '企业主卡，负责企业资金池下发划拨、增值税专票集中开具及日常加油消费。当前芯片余额 ¥' + loaded + (hasUnloaded ? ('，待圈存 ¥' + unloaded) : '，无待圈存资金') + '。';
+if (statLoaded) statLoaded.textContent = '¥' + loaded;
+if (statUnloaded) statUnloaded.textContent = '¥' + unloaded;
 if (statAlloc) statAlloc.textContent = '— (资金总池)';
-if (statQuancun) statQuancun.textContent = (cardLedger.quancun_count || 8) + ' 笔 (¥11,000)';
-if (statConsume) statConsume.textContent = (cardLedger.consume_count || 30) + ' 笔 (¥7,969)';
+if (statQuancun) statQuancun.textContent = (cardLedger.quancun_count || 0) + ' 笔';
+if (statConsume) statConsume.textContent = (cardLedger.consume_count || 0) + ' 笔';
 } else {
 if (badgeEl) { badgeEl.textContent = cardObj.typeLabel; badgeEl.className = 'badge badge-success'; }
-if (statusBadgeEl) { statusBadgeEl.textContent = '正常激活卡 · 资金已全额圈存'; statusBadgeEl.className = 'badge badge-success'; }
+if (statusBadgeEl) { statusBadgeEl.textContent = hasUnloaded ? '正常激活卡 · 存在待圈存' : '正常激活卡 · 资金已圈存'; statusBadgeEl.className = hasUnloaded ? 'badge badge-warning' : 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '副卡 ' + cardNo + ' · ' + remark;
-if (descEl) descEl.textContent = '单位绑定副卡（持卡人: ' + cardObj.holder + '），历史接收划拨额度已于加油站自助机 100% 圈存写入 IC 芯片并消费结清。';
+if (descEl) descEl.textContent = '单位绑定副卡（持卡人: ' + cardObj.holder + '），芯片余额 ¥' + loaded + (hasUnloaded ? ('，尚有 ¥' + unloaded + ' 预分配待圈存资金（需在加油站自助机插卡写入芯片）') : '，无待圈存资金') + '。';
 const allocSum = (cardLedger.allocation_records || []).reduce((acc, a) => acc + (parseFloat(a.amount) || 0), 0);
-if (statLoaded) statLoaded.textContent = '¥0.00 (已结清)';
+if (statLoaded) statLoaded.textContent = '¥' + loaded;
+if (statUnloaded) statUnloaded.textContent = '¥' + unloaded;
 if (statAlloc) statAlloc.textContent = '¥' + allocSum.toFixed(2);
 if (statQuancun) statQuancun.textContent = (cardLedger.quancun_count || 0) + ' 笔';
 if (statConsume) statConsume.textContent = (cardLedger.consume_count || 0) + ' 笔';
@@ -2348,17 +2375,18 @@ const sum = b.summary || {};
 const pbEl = document.getElementById('kpi-pool-balance');
 if (pbEl) pbEl.textContent = '¥' + (b.pool_balance || '0.00');
 const mlEl = document.getElementById('kpi-master-loaded');
-if (mlEl) mlEl.textContent = '¥' + (mc.loaded_balance || '30.95');
+if (mlEl) mlEl.textContent = '¥' + (mc.loaded_balance || '626.78');
 const mmEl = document.getElementById('kpi-master-meta');
-if (mmEl) mmEl.textContent = '主卡 ' + (mc.masked_card_no || '10001112****0729') + ' · 孟祥山 (正常卡)';
+if (mmEl) mmEl.textContent = '主卡 ' + (mc.masked_card_no || '10001112****0729') + ' · 孟祥山 (芯片 ¥' + (mc.loaded_balance || '626.78') + ')';
 const ubEl = document.getElementById('kpi-unloaded-balance');
 if (ubEl) ubEl.textContent = '¥' + (sum.total_unloaded || '0.00');
 const vsEl = document.getElementById('kpi-vice-summary');
-if (vsEl) vsEl.textContent = vcs.length + ' 张已激活副卡 · 累计划拨 ¥' + (sum.total_allocated_to_vices || '20,000.00');
+const vicesLoadedFen = (sum.total_loaded_fen || 0) - (mc.loaded_balance_fen || 0);
+if (vsEl) vsEl.textContent = '¥' + (vicesLoadedFen / 100).toFixed(2);
 renderCardMatrix();
 renderFocusCardBanner(currentFocusCard);
 renderSubTabContent(currentFocusCard);
-setNotice('资金总览已同步：主卡 1 张（已圈存 ¥' + mc.loaded_balance + '），副卡 ' + vcs.length + ' 张（激活使用 · 累计划拨 ¥' + sum.total_allocated_to_vices + ' 全部圈存），在途未圈存资金 ¥0.00。', 'success');
+setNotice('资金总览已同步：主卡 1 张（芯片 ¥' + (mc.loaded_balance || '626.78') + '），副卡 ' + vcs.length + ' 张（芯片合计 ¥' + (vicesLoadedFen / 100).toFixed(2) + '），待圈存预分配 ¥' + (sum.total_unloaded || '0.00') + '。', 'success');
 loadRecharges();
 } catch (e) {
 setNotice('加载资金总览异常：' + e.message, 'error');
@@ -2390,7 +2418,7 @@ document.getElementById("recharge-wrap").innerHTML =
 '<strong>查询区间 (' + s + ' 至 ' + e + ') 核对结果：</strong><br />' +
 '• 该区间内无网银直接充值记录。<br />' +
 '• 常见原因：企业多用户加油卡通常由财务通过<strong>银行对公转账 / 资金池直充</strong>形式直接入账。<br />' +
-'• 当前主卡实际可用卡账余额：<strong>¥30.95</strong>，全卡已分配未圈存金额：<strong>¥0.00</strong>。' +
+'• 当前主卡实际可用卡账余额：<strong>¥626.78</strong>，全卡待圈存预分配金额：<strong>¥3,000.00</strong>。' +
 '</div>';
 } else {
 const rows = list.map((item, idx) =>
@@ -2418,6 +2446,7 @@ if (btn) { btn.disabled = false; btn.textContent = '查询充值流水'; }
 syncAuthUi();
 pollSystemStatus();
 loadIssuedInvoices();
+loadAllocations();
 setInterval(pollSystemStatus, 30000);
 </script>
 <!-- Steel Live Browser Modal -->
