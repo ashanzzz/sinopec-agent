@@ -15,9 +15,33 @@ pub async fn bearer_auth_middleware(
     next: Next,
 ) -> Response {
     let path = req.uri().path();
-    // /health and /human/{token} are always accessible for container healthchecks & user browser clicks
-    if path == "/api/v1/health" || path.starts_with("/human/") {
+    // /health, /human/{token}, /, and login/session are accessible for web visitors & healthchecks
+    if path == "/api/v1/health"
+        || path == "/api/v1/auth/login"
+        || path == "/api/v1/auth/session"
+        || path.starts_with("/human/")
+        || path == "/"
+    {
         return next.run(req).await;
+    }
+
+    // Check user session token from SQLite KV
+    let token_candidate = req
+        .headers()
+        .get("X-Sinopec-Auth-Token")
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| {
+            req.headers()
+                .get(AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.strip_prefix("Bearer "))
+        })
+        .map(|s| s.trim());
+
+    if let Some(tok) = token_candidate {
+        if let Ok(Some(_)) = state.store.get_kv(&format!("session:{}", tok)).await {
+            return next.run(req).await;
+        }
     }
 
     let Some(expected) = &state.config.api_token else {

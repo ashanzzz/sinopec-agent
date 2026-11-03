@@ -326,4 +326,265 @@ impl SqliteStore {
             updated_at: r.get("updated_at"),
         }
     }
+
+    pub async fn seed_admin_user(&self, username: &str, password: &str) -> AppResult<()> {
+        use sha2::{Digest, Sha256};
+        let now = Utc::now().to_rfc3339();
+        let salt = "sinopec_enterprise_salt_2026";
+        let mut hasher = Sha256::new();
+        hasher.update(format!("{}:{}", salt, password).as_bytes());
+        let hash = hex::encode(hasher.finalize());
+
+        sqlx::query(
+            "INSERT INTO admin_users (username, password_hash, salt, created_at, last_login_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(username) DO UPDATE SET password_hash = excluded.password_hash, salt = excluded.salt",
+        )
+        .bind(username)
+        .bind(&hash)
+        .bind(salt)
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn verify_admin_user(&self, username: &str, password: &str) -> AppResult<bool> {
+        use sha2::{Digest, Sha256};
+        let row = sqlx::query("SELECT password_hash, salt FROM admin_users WHERE username = ?")
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        let Some(r) = row else {
+            return Ok(false);
+        };
+
+        let stored_hash: String = r.get("password_hash");
+        let salt: String = r.get("salt");
+
+        let mut hasher = Sha256::new();
+        hasher.update(format!("{}:{}", salt, password).as_bytes());
+        let computed_hash = hex::encode(hasher.finalize());
+
+        if stored_hash == computed_hash {
+            let now = Utc::now().to_rfc3339();
+            let _ = sqlx::query("UPDATE admin_users SET last_login_at = ? WHERE username = ?")
+                .bind(&now)
+                .bind(username)
+                .execute(&self.pool)
+                .await;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn save_local_quancun(&self, records: &[serde_json::Value]) -> AppResult<usize> {
+        let now = Utc::now().to_rfc3339();
+        let mut count = 0;
+        for r in records {
+            let card_no = r.get("card_no").and_then(|v| v.as_str()).unwrap_or("");
+            let card_alias = r.get("card_alias").and_then(|v| v.as_str());
+            let holder_name = r.get("holder_name").and_then(|v| v.as_str());
+            let ope_time = r.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            let amount_fen = r.get("amount").and_then(|v| v.as_str()).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+            let amount_yuan = crate::sinopec::models::format_fen_yuan(amount_fen);
+            let balance_fen = r.get("balance").and_then(|v| v.as_str()).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+            let balance_yuan = crate::sinopec::models::format_fen_yuan(balance_fen);
+            let node_tag = r.get("nodeTag").and_then(|v| v.as_str()).unwrap_or("").trim();
+            let tra_name = r.get("traName").and_then(|v| v.as_str()).unwrap_or("圈存");
+            let oil_name = r.get("oilName").and_then(|v| v.as_str());
+
+            if card_no.is_empty() || ope_time.is_empty() {
+                continue;
+            }
+
+            let res = sqlx::query(
+                "INSERT INTO local_quancun_records 
+                 (card_no, card_alias, holder_name, ope_time, amount_fen, amount_yuan, balance_yuan, node_tag, tra_name, oil_name, synced_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(card_no, ope_time, amount_fen) DO UPDATE SET
+                    balance_yuan = excluded.balance_yuan,
+                    node_tag = excluded.node_tag,
+                    card_alias = COALESCE(excluded.card_alias, local_quancun_records.card_alias),
+                    synced_at = excluded.synced_at"
+            )
+            .bind(card_no)
+            .bind(card_alias)
+            .bind(holder_name)
+            .bind(ope_time)
+            .bind(amount_fen)
+            .bind(&amount_yuan)
+            .bind(&balance_yuan)
+            .bind(node_tag)
+            .bind(tra_name)
+            .bind(oil_name)
+            .bind(&now)
+            .execute(&self.pool)
+            .await;
+
+            if res.is_ok() {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    pub async fn list_local_quancun(
+        &self,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        card_no: Option<&str>,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let s = start_date.unwrap_or("");
+        let e = end_date.unwrap_or("9999-99-99");
+        let c = card_no.unwrap_or("all");
+
+        let rows = sqlx::query(
+            "SELECT card_no, card_alias, holder_name, ope_time, amount_fen, amount_yuan, balance_yuan, node_tag, tra_name, oil_name, synced_at 
+             FROM local_quancun_records 
+             WHERE substr(ope_time, 1, 10) >= ? 
+               AND substr(ope_time, 1, 10) <= ?
+               AND (? = 'all' OR ? = '' OR card_no = ?)
+             ORDER BY ope_time DESC"
+        )
+        .bind(s)
+        .bind(e)
+        .bind(c)
+        .bind(c)
+        .bind(c)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            let c_no: String = r.get("card_no");
+            let c_alias: Option<String> = r.get("card_alias");
+            let h_name: Option<String> = r.get("holder_name");
+            let o_time: String = r.get("ope_time");
+            let a_fen: i64 = r.get("amount_fen");
+            let a_yuan: String = r.get("amount_yuan");
+            let b_yuan: String = r.get("balance_yuan");
+            let n_tag: String = r.get("node_tag");
+            let t_name: String = r.get("tra_name");
+            let o_name: Option<String> = r.get("oil_name");
+            let s_at: String = r.get("synced_at");
+
+            out.push(serde_json::json!({
+                "card_no": c_no,
+                "card_alias": c_alias,
+                "holder_name": h_name,
+                "opeTime": o_time,
+                "amount": a_fen.to_string(),
+                "amount_yuan": a_yuan,
+                "balance": b_yuan,
+                "nodeTag": n_tag,
+                "traName": t_name,
+                "oilName": o_name.unwrap_or_default(),
+                "synced_at": s_at
+            }));
+        }
+        Ok(out)
+    }
+
+    pub async fn save_local_invoices(&self, records: &[serde_json::Value]) -> AppResult<usize> {
+        let now = Utc::now().to_rfc3339();
+        let mut count = 0;
+        for r in records {
+            let invoice_no = r.get("invoice_no").and_then(|v| v.as_str()).unwrap_or("");
+            if invoice_no.is_empty() {
+                continue;
+            }
+            let invoice_number = r.get("invoiceNumber").or_else(|| r.get("invoice_number")).and_then(|v| v.as_str());
+            let einv_req_key = r.get("einvReqKey").or_else(|| r.get("einv_req_key")).and_then(|v| v.as_str());
+            let title = r.get("title").and_then(|v| v.as_str()).unwrap_or("天津祺富机械加工有限公司");
+            let amount_fen = r.get("money_fen").or_else(|| r.get("amount_fen")).and_then(|v| v.as_i64()).unwrap_or(0);
+            let amount_yuan = r.get("money").or_else(|| r.get("amount")).and_then(|v| v.as_str()).unwrap_or("0.00");
+            let fplx = r.get("fplx").and_then(|v| v.as_str()).unwrap_or("02");
+            let add_date = r.get("addDate").or_else(|| r.get("add_date")).and_then(|v| v.as_str()).unwrap_or("");
+            let status = r.get("status").and_then(|v| v.as_i64()).unwrap_or(1);
+            let url = r.get("url").and_then(|v| v.as_str());
+            let start_date = r.get("start_date").and_then(|v| v.as_str());
+            let end_date = r.get("end_date").and_then(|v| v.as_str());
+            let system = r.get("system").and_then(|v| v.as_str());
+
+            let res = sqlx::query(
+                "INSERT INTO local_invoices 
+                 (invoice_no, invoice_number, einv_req_key, title, amount_fen, amount_yuan, fplx, add_date, status, url, start_date, end_date, system, synced_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(invoice_no) DO UPDATE SET
+                    invoice_number = COALESCE(excluded.invoice_number, local_invoices.invoice_number),
+                    url = COALESCE(excluded.url, local_invoices.url),
+                    status = excluded.status,
+                    synced_at = excluded.synced_at"
+            )
+            .bind(invoice_no)
+            .bind(invoice_number)
+            .bind(einv_req_key)
+            .bind(title)
+            .bind(amount_fen)
+            .bind(amount_yuan)
+            .bind(fplx)
+            .bind(add_date)
+            .bind(status)
+            .bind(url)
+            .bind(start_date)
+            .bind(end_date)
+            .bind(system)
+            .bind(&now)
+            .execute(&self.pool)
+            .await;
+
+            if res.is_ok() {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    pub async fn list_local_invoices(
+        &self,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let s = start_date.unwrap_or("");
+        let e = end_date.unwrap_or("9999-99-99");
+
+        let rows = sqlx::query(
+            "SELECT invoice_no, invoice_number, einv_req_key, title, amount_fen, amount_yuan, fplx, add_date, status, url, start_date, end_date, system, synced_at 
+             FROM local_invoices 
+             WHERE (start_date >= ? OR substr(add_date, 1, 10) >= ?)
+               AND (end_date <= ? OR substr(add_date, 1, 10) <= ?)
+             ORDER BY add_date DESC, id DESC"
+        )
+        .bind(s)
+        .bind(s)
+        .bind(e)
+        .bind(e)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(serde_json::json!({
+                "invoice_no": r.get::<String, _>("invoice_no"),
+                "invoiceNumber": r.get::<Option<String>, _>("invoice_number"),
+                "einvReqKey": r.get::<Option<String>, _>("einv_req_key"),
+                "title": r.get::<Option<String>, _>("title"),
+                "amount_fen": r.get::<i64, _>("amount_fen"),
+                "amount": r.get::<String, _>("amount_yuan"),
+                "fplx": r.get::<Option<String>, _>("fplx"),
+                "addDate": r.get::<String, _>("add_date"),
+                "status": r.get::<Option<i64>, _>("status"),
+                "url": r.get::<Option<String>, _>("url"),
+                "start_date": r.get::<Option<String>, _>("start_date"),
+                "end_date": r.get::<Option<String>, _>("end_date"),
+                "system": r.get::<Option<String>, _>("system"),
+                "synced_at": r.get::<String, _>("synced_at")
+            }));
+        }
+        Ok(out)
+    }
 }

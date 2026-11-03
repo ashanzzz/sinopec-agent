@@ -36,6 +36,8 @@ pub struct AppConfig {
     pub steel_cdp_url: String,
     pub scrapling_base_url: Option<String>,
     pub sinopec_base_url: String,
+    pub admin_username: String,
+    pub admin_password: Option<String>,
 }
 
 impl AppConfig {
@@ -78,6 +80,12 @@ impl AppConfig {
             .or_else(|| Some("http://192.168.8.11:8111".to_string()));
         let sinopec_base_url = env::var("SINOPEC_BASE_URL")
             .unwrap_or_else(|_| "https://www.sinopecsales.com".to_string());
+        let admin_username = env::var("SINOPEC_ADMIN_USERNAME").unwrap_or_else(|_| "ashan".to_string());
+        let admin_password = env::var("SINOPEC_ADMIN_PASSWORD")
+            .ok()
+            .or_else(|| env::var("DEFAULT_COMMON_PASSWORD").ok())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
 
         Self {
             bind_addr,
@@ -94,6 +102,8 @@ impl AppConfig {
             steel_cdp_url,
             scrapling_base_url,
             sinopec_base_url,
+            admin_username,
+            admin_password,
         }
     }
 

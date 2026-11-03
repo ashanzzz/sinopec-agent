@@ -65,6 +65,14 @@ impl AppState {
             recorder.clone(),
         );
 
+        if let Some(pwd) = &config.admin_password {
+            if let Err(e) = store.seed_admin_user(&config.admin_username, pwd).await {
+                tracing::warn!("Failed to seed admin user: {e}");
+            } else {
+                tracing::info!(username = %config.admin_username, "Admin user credentials initialized");
+            }
+        }
+
         Ok(Self {
             config,
             store,

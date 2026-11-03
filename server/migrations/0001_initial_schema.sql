@@ -64,3 +64,45 @@ CREATE TABLE IF NOT EXISTS kv (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS admin_users (
+    username TEXT PRIMARY KEY NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_login_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS local_quancun_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_no TEXT NOT NULL,
+    card_alias TEXT,
+    holder_name TEXT,
+    ope_time TEXT NOT NULL,
+    amount_fen INTEGER NOT NULL,
+    amount_yuan TEXT NOT NULL,
+    balance_yuan TEXT NOT NULL,
+    node_tag TEXT NOT NULL,
+    tra_name TEXT NOT NULL,
+    oil_name TEXT,
+    synced_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quancun_unique ON local_quancun_records(card_no, ope_time, amount_fen);
+
+CREATE TABLE IF NOT EXISTS local_invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_no TEXT UNIQUE NOT NULL,
+    invoice_number TEXT,
+    einv_req_key TEXT,
+    title TEXT,
+    amount_fen INTEGER NOT NULL,
+    amount_yuan TEXT NOT NULL,
+    fplx TEXT,
+    add_date TEXT NOT NULL,
+    status INTEGER,
+    url TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    system TEXT,
+    synced_at TEXT NOT NULL
+);
+

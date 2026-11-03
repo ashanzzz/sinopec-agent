@@ -543,26 +543,26 @@ animation: pulseBorder 1.5s infinite;
 <div class="brand-group">
 <div class="brand-logo">石化</div>
 <div>
-<div class="brand-title">中国石化加油卡企业数电发票工作台</div>
+<div class="brand-title">中国石化企业油卡管理与发票系统</div>
 <div class="brand-sub">天津祺富机械加工有限公司 · 税号 __TAX_CODE__ · 主卡 10001112****0729</div>
 </div>
 </div>
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+<div style="font-size:12px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border-subtle);padding:5px 12px;border-radius:6px;display:flex;align-items:center;gap:6px;">
+<span>📅 本地最后同步:</span>
+<strong id="header-last-sync" style="color:var(--brand-blue);">正在检测...</strong>
+<button type="button" class="btn btn-outline" style="padding:2px 6px;font-size:11px;margin-left:4px;" onclick="triggerLocalSync(this)">
+<svg class="btn-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+<span>手动同步</span>
+</button>
+</div>
 <div id="status-sinopec-pill" class="auth-pill locked" title="中石化网厅会话实名状态">
 <span id="status-sinopec-dot" class="dot locked"></span>
 <span id="status-sinopec-text">中石化网厅: 探活中...</span>
 </div>
-<div id="status-cookie-pill" class="auth-pill locked" title="本地 Cookie 令牌状态">
-<span id="status-cookie-dot" class="dot locked"></span>
-<span id="status-cookie-text">Cookie: 校验中...</span>
-</div>
-<div id="steel-status-pill" class="auth-pill" title="Unraid Steel Chrome 状态">
-<span id="steel-status-dot" class="dot"></span>
-<span id="steel-status-text">远程浏览器: 探活中...</span>
-</div>
-<div id="db-status-pill" class="auth-pill online" title="SQLite 数据库状态">
-<span class="dot online"></span>
-<span>SQLite WAL</span>
+<div id="user-session-pill" style="display:none;font-size:12px;color:var(--text-secondary);align-items:center;gap:8px;">
+<span>用户: <strong id="user-session-name">ashan</strong></span>
+<button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:11px;color:#dc2626;" onclick="handleAdminLogout()">退出</button>
 </div>
 <button type="button" class="btn btn-outline" id="btn-view-steel-screen" onclick="openSteelLiveModal()">
 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -584,6 +584,29 @@ animation: pulseBorder 1.5s infinite;
 </div>
 </header>
 <main class="workspace">
+<!-- System Login Modal Barrier -->
+<div id="admin-login-barrier" style="display:none;margin-bottom:24px;">
+<div class="surface" style="max-width:440px;margin:40px auto;border:1px solid var(--border-strong);box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);padding:32px;border-radius:12px;">
+<div style="text-align:center;margin-bottom:24px;">
+<div style="display:inline-flex;width:48px;height:48px;border-radius:12px;background:var(--brand-red);color:#ffffff;align-items:center;justify-content:center;font-size:24px;font-weight:bold;margin-bottom:12px;">油</div>
+<h2 style="margin:0 0 6px;font-size:20px;font-weight:800;color:var(--text-primary);">系统身份鉴权</h2>
+<p style="margin:0;font-size:13px;color:var(--text-muted);">请输入管理员用户名与密码进入工作台</p>
+</div>
+<div id="admin-login-error" style="display:none;background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:16px;"></div>
+<div style="display:flex;flex-direction:column;gap:14px;">
+<div>
+<label style="display:block;font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">用户名</label>
+<input type="text" id="admin-user-input" class="form-control" value="ashan" placeholder="请输入用户名" style="width:100%;padding:9px 12px;font-size:14px;" />
+</div>
+<div>
+<label style="display:block;font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">密码</label>
+<input type="password" id="admin-pass-input" class="form-control" placeholder="请输入密码" style="width:100%;padding:9px 12px;font-size:14px;" onkeydown="if(event.key==='Enter')handleAdminLogin()" />
+</div>
+<button type="button" class="btn btn-primary" id="btn-admin-login" style="margin-top:8px;padding:10px;font-size:14px;font-weight:700;" onclick="handleAdminLogin()">立即登录工作台</button>
+</div>
+</div>
+</div>
+<div id="main-app-content">
 <nav class="nav-bar" aria-label="业务功能导航">
 <button type="button" class="nav-item" id="nav-login" onclick="selectTab('login')">
 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -1177,6 +1200,7 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 </div>
 </div>
 </section>
+</div>
 </main>
 <aside class="tweak-dock" aria-label="界面视图调节">
 <strong>UI 视图调节：</strong>
@@ -2574,7 +2598,157 @@ setNotice("查询充值流水失败：" + err.message, "error");
 if (btn) { btn.disabled = false; btn.textContent = '查询充值流水'; }
 }
 }
+// System Admin Auth & Local Sync Logic
+const AUTH_TOKEN_KEY = 'sinopec_agent_admin_token';
+const AUTH_USER_KEY = 'sinopec_agent_admin_user';
+
+async function checkAdminAuth() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY);
+    const barrier = document.getElementById('admin-login-barrier');
+    const content = document.getElementById('main-app-content');
+    const userPill = document.getElementById('user-session-pill');
+    const userName = document.getElementById('user-session-name');
+
+    if (!token) {
+        if (barrier) barrier.style.display = 'block';
+        if (content) content.style.display = 'none';
+        if (userPill) userPill.style.display = 'none';
+        return false;
+    }
+
+    try {
+        const res = await fetch('/api/v1/auth/session', {
+            headers: { 'X-Sinopec-Auth-Token': token }
+        });
+        const data = await res.json();
+        if (data.ok && data.data && data.data.authenticated) {
+            if (barrier) barrier.style.display = 'none';
+            if (content) content.style.display = 'block';
+            if (userPill) userPill.style.display = 'inline-flex';
+            if (userName) userName.textContent = data.data.username || 'ashan';
+            refreshLocalSyncStatus();
+            return true;
+        } else {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            sessionStorage.removeItem(AUTH_TOKEN_KEY);
+            if (barrier) barrier.style.display = 'block';
+            if (content) content.style.display = 'none';
+            if (userPill) userPill.style.display = 'none';
+            return false;
+        }
+    } catch (e) {
+        if (barrier) barrier.style.display = 'none';
+        if (content) content.style.display = 'block';
+        return true;
+    }
+}
+
+async function handleAdminLogin() {
+    const uInput = document.getElementById('admin-user-input');
+    const pInput = document.getElementById('admin-pass-input');
+    const errBox = document.getElementById('admin-login-error');
+    const btn = document.getElementById('btn-admin-login');
+
+    const username = (uInput ? uInput.value : '').trim();
+    const password = (pInput ? pInput.value : '').trim();
+
+    if (!username || !password) {
+        if (errBox) {
+            errBox.textContent = '请输入用户名与密码';
+            errBox.style.display = 'block';
+        }
+        return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = '正在鉴权验证...'; }
+    if (errBox) errBox.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/v1/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.ok && data.data && data.data.token) {
+            localStorage.setItem(AUTH_TOKEN_KEY, data.data.token);
+            localStorage.setItem(AUTH_USER_KEY, data.data.username);
+            setNotice('管理员鉴权成功，欢迎进入油卡管理工作台！', 'success');
+            checkAdminAuth();
+        } else {
+            const msg = (data.error && data.error.message) ? data.error.message : '用户名或密码错误';
+            if (errBox) {
+                errBox.textContent = msg;
+                errBox.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        if (errBox) {
+            errBox.textContent = '连接服务失败：' + e.message;
+            errBox.style.display = 'block';
+        }
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '立即登录工作台'; }
+    }
+}
+
+async function handleAdminLogout() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+        try {
+            await fetch('/api/v1/auth/logout', {
+                method: 'POST',
+                headers: { 'X-Sinopec-Auth-Token': token }
+            });
+        } catch (_) {}
+    }
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    checkAdminAuth();
+}
+
+async function refreshLocalSyncStatus() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    try {
+        const res = await fetch('/api/v1/local/sync-status', {
+            headers: token ? { 'X-Sinopec-Auth-Token': token } : {}
+        });
+        const data = await res.json();
+        if (data.ok && data.data) {
+            const timeStr = data.data.last_synced_at || '暂未同步';
+            const el = document.getElementById('header-last-sync');
+            if (el) el.textContent = timeStr;
+        }
+    } catch (_) {}
+}
+
+async function triggerLocalSync(btn) {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const origText = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>同步中...</span>'; }
+    try {
+        const res = await fetch('/api/v1/local/sync', {
+            method: 'POST',
+            headers: token ? { 'X-Sinopec-Auth-Token': token } : {}
+        });
+        const data = await res.json();
+        if (data.ok && data.data) {
+            setNotice(data.data.message || '数据已成功同步至本地 SQLite！', data.data.ok ? 'success' : 'warning');
+            refreshLocalSyncStatus();
+            loadAllocations();
+            loadIssuedInvoices();
+        } else {
+            setNotice('同步提示：' + ((data.error && data.error.message) || '网厅会话超时'), 'warning');
+        }
+    } catch (e) {
+        setNotice('同步请求失败：' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+}
+
 // Startup initialization
+checkAdminAuth();
 syncAuthUi();
 pollSystemStatus();
 loadIssuedInvoices();

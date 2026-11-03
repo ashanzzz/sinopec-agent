@@ -40,6 +40,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/sms/send", post(auth_send_sms_handler))
         .route("/auth/sms/login", post(auth_direct_sms_login_handler))
         .route("/auth/sms-login", post(auth_direct_sms_login_handler))
+        .route("/auth/login", post(admin_login_handler))
+        .route("/auth/session", get(admin_session_handler))
+        .route("/auth/logout", post(admin_logout_handler))
         .route("/account", get(account_handler))
         .route("/cards", get(cards_handler))
         .route("/invoice-capabilities", get(invoice_capabilities_handler))
@@ -48,6 +51,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/recharges", get(recharges_handler))
         .route("/allocations", get(allocations_handler))
         .route("/allocations/logs", get(allocations_logs_handler))
+        .route("/local/sync-status", get(local_sync_status_handler))
+        .route("/local/sync", post(local_sync_trigger_handler))
+        .route("/local/quancun", get(local_quancun_list_handler))
+        .route("/local/invoices", get(local_invoices_list_handler))
+        .route("/local/allocations", get(local_allocations_handler))
         .route(
             "/cards/{card_no}/transactions",
             get(card_transactions_handler),
@@ -775,4 +783,226 @@ async fn browser_prewarm_handler(
         "cookie_count": snap.sinopec_cookie_count,
         "elapsed_ms": elapsed
     })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdminLoginBody {
+    pub username: String,
+    pub password: String,
+}
+
+async fn admin_login_handler(
+    State(state): State<AppState>,
+    Json(body): Json<AdminLoginBody>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let ok = state
+        .store
+        .verify_admin_user(&body.username, &body.password)
+        .await?;
+    if ok {
+        let token = format!("sinopec_token_{}", uuid::Uuid::new_v4().simple());
+        let _ = state
+            .store
+            .set_kv(
+                &format!("session:{}", token),
+                &json!({
+                    "username": body.username,
+                    "created_at": chrono::Utc::now().to_rfc3339()
+                }),
+            )
+            .await;
+        Ok(ApiEnvelope::success(json!({
+            "token": token,
+            "username": body.username,
+            "authenticated": true
+        })))
+    } else {
+        Err(AppError::new(
+            ErrorCode::LoginRequired,
+            "用户名或密码错误，请核对后重试".to_string(),
+        ))
+    }
+}
+
+async fn admin_session_handler(
+    State(state): State<AppState>,
+    req: axum::extract::Request,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let token = req
+        .headers()
+        .get("X-Sinopec-Auth-Token")
+        .or_else(|| req.headers().get(axum::http::header::AUTHORIZATION))
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.strip_prefix("Bearer ").unwrap_or(s).trim());
+
+    if let Some(tok) = token {
+        if let Ok(Some(sess)) = state.store.get_kv(&format!("session:{}", tok)).await {
+            return Ok(ApiEnvelope::success(json!({
+                "authenticated": true,
+                "username": sess.get("username").and_then(|v| v.as_str()).unwrap_or("ashan"),
+                "created_at": sess.get("created_at")
+            })));
+        }
+    }
+
+    Ok(ApiEnvelope::success(json!({
+        "authenticated": false
+    })))
+}
+
+async fn admin_logout_handler(
+    State(state): State<AppState>,
+    req: axum::extract::Request,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let token = req
+        .headers()
+        .get("X-Sinopec-Auth-Token")
+        .or_else(|| req.headers().get(axum::http::header::AUTHORIZATION))
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.strip_prefix("Bearer ").unwrap_or(s).trim());
+
+    if let Some(tok) = token {
+        let _ = state
+            .store
+            .set_kv(&format!("session:{}", tok), &json!({ "logged_out": true }))
+            .await;
+    }
+    Ok(ApiEnvelope::success(json!({ "success": true })))
+}
+
+async fn local_sync_status_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let meta = state
+        .store
+        .get_kv("sync:meta")
+        .await?
+        .unwrap_or_else(|| json!({
+            "last_synced_at": "暂未同步",
+            "status": "pending"
+        }));
+    let auth = state.service.auth_status().await.ok();
+    let remote_online = auth.map(|a| a.verified).unwrap_or(false);
+
+    Ok(ApiEnvelope::success(json!({
+        "last_synced_at": meta.get("last_synced_at").unwrap_or(&json!("暂未同步")),
+        "remote_online": remote_online,
+        "meta": meta
+    })))
+}
+
+async fn local_sync_trigger_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let auth = state.service.auth_status().await?;
+    let now_str = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+    if !auth.verified {
+        let last_synced = state
+            .store
+            .get_kv("sync:meta")
+            .await?
+            .and_then(|v| v.get("last_synced_at").cloned());
+        return Ok(ApiEnvelope::success(json!({
+            "ok": false,
+            "remote_online": false,
+            "last_synced_at": last_synced.unwrap_or(json!("未同步")),
+            "message": "中石化网厅会话已离线（需要短信验证码重新登录）。当前已加载本地 SQLite 历史数据快照。"
+        })));
+    }
+
+    let breakdown = state.http.query_allocation_breakdown().await?;
+    state.store.set_kv("sync:allocations", &breakdown).await?;
+
+    let mut all_quancun = Vec::new();
+    if let Some(cards) = breakdown.get("cards_ledger").and_then(|v| v.as_object()) {
+        for (card_no, c_data) in cards {
+            let alias = c_data.get("card_alias").and_then(|v| v.as_str()).unwrap_or("");
+            let holder = c_data.get("holder").and_then(|v| v.as_str()).unwrap_or("");
+            if let Some(q_recs) = c_data.get("quancun_records").and_then(|v| v.as_array()) {
+                for q in q_recs {
+                    let mut item = q.clone();
+                    if let Some(obj) = item.as_object_mut() {
+                        obj.insert("card_no".to_string(), json!(card_no));
+                        obj.insert("card_alias".to_string(), json!(alias));
+                        obj.insert("holder_name".to_string(), json!(holder));
+                    }
+                    all_quancun.push(item);
+                }
+            }
+        }
+    }
+    let quancun_count = state.store.save_local_quancun(&all_quancun).await?;
+
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let start_date = "2026-01-01";
+    let invoices_val = state
+        .http
+        .query_live_plain_invoices(start_date, &today)
+        .await
+        .ok()
+        .flatten();
+    let invoice_count = if let Some(val) = invoices_val {
+        if let Some(list) = val.get("list").and_then(|v| v.as_array()) {
+            state.store.save_local_invoices(list).await?
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+
+    let sync_meta = json!({
+        "last_synced_at": now_str,
+        "remote_online": true,
+        "quancun_records_count": quancun_count,
+        "invoice_records_count": invoice_count,
+        "status": "success"
+    });
+    state.store.set_kv("sync:meta", &sync_meta).await?;
+
+    Ok(ApiEnvelope::success(json!({
+        "ok": true,
+        "remote_online": true,
+        "last_synced_at": now_str,
+        "quancun_synced": quancun_count,
+        "invoices_synced": invoice_count,
+        "message": format!("同步成功！已持久化 {} 笔圈存记录与 {} 笔发票记录到本地数据库。", quancun_count, invoice_count)
+    })))
+}
+
+async fn local_quancun_list_handler(
+    State(state): State<AppState>,
+    Query(q): Query<CardTransactionsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.as_deref();
+    let end = q.end_date.as_deref();
+    let list = state.store.list_local_quancun(start, end, None).await?;
+    Ok(ApiEnvelope::success(json!({
+        "count": list.len(),
+        "list": list
+    })))
+}
+
+async fn local_invoices_list_handler(
+    State(state): State<AppState>,
+    Query(q): Query<TransactionsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.as_deref();
+    let end = q.end_date.as_deref();
+    let list = state.store.list_local_invoices(start, end).await?;
+    Ok(ApiEnvelope::success(json!({
+        "count": list.len(),
+        "list": list
+    })))
+}
+
+async fn local_allocations_handler(
+    State(state): State<AppState>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    if let Ok(Some(cached)) = state.store.get_kv("sync:allocations").await {
+        return Ok(ApiEnvelope::success(cached));
+    }
+    let breakdown = state.http.query_allocation_breakdown().await?;
+    Ok(ApiEnvelope::success(breakdown))
 }
