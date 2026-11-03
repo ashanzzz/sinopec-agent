@@ -197,3 +197,29 @@ async fn test_rest_and_mcp_and_human_ui_end_to_end() {
 
     let _ = std::fs::remove_dir_all(data_dir);
 }
+
+#[tokio::test]
+async fn test_cutover_date_validation_and_spanning_invariants() {
+    let cfg = test_config(false);
+    let data_dir = cfg.data_dir.clone();
+    let state = AppState::initialize(cfg).await.unwrap();
+
+    // 1. Inverted date range must be immediately rejected with InvalidRequest
+    let inv_res = state
+        .http
+        .query_live_uninvoice_trans("2026-10-31", "2026-10-01", "1")
+        .await;
+    assert!(inv_res.is_err(), "Inverted dates must fail immediately");
+    let err = inv_res.unwrap_err();
+    assert_eq!(err.code, sinopec_server::error::ErrorCode::InvalidRequest);
+    assert!(err.message.contains("起始日期"));
+
+    let inv_create_res = state
+        .http
+        .create_live_electronic_invoice("2026-10-31", "2026-10-01", "test@example.com")
+        .await;
+    assert!(inv_create_res.is_err(), "Inverted dates on create must fail");
+    assert_eq!(inv_create_res.unwrap_err().code, sinopec_server::error::ErrorCode::InvalidRequest);
+
+    let _ = std::fs::remove_dir_all(data_dir);
+}

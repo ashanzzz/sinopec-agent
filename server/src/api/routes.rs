@@ -568,8 +568,26 @@ async fn invoice_create_live_handler(
             .await?;
         results.push(r);
     }
+    let (spanning, total_trans, total_money) = if results.len() == 1 {
+        let r0 = &results[0];
+        (
+            r0.get("spanning_cutover").and_then(|v| v.as_bool()).unwrap_or(false),
+            r0.get("total_trans_count")
+                .and_then(|v| v.as_i64())
+                .or_else(|| r0.get("trans_count").and_then(|v| v.as_i64())),
+            r0.get("total_money")
+                .or_else(|| r0.get("money"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+        )
+    } else {
+        (false, None, None)
+    };
     Ok(ApiEnvelope::success(json!({
         "windows_submitted": results.len(),
+        "spanning_cutover": spanning,
+        "total_trans_count": total_trans,
+        "total_money": total_money,
         "results": results
     })))
 }

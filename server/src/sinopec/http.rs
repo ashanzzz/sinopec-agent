@@ -567,6 +567,13 @@ impl SinopecHttpTransport {
         end_date: &str,
         merge: &str,
     ) -> AppResult<Option<serde_json::Value>> {
+        if start_date > end_date {
+            return Err(AppError::new(
+                ErrorCode::InvalidRequest,
+                format!("起始日期 ({start_date}) 不能大于截止日期 ({end_date})"),
+            ));
+        }
+
         const CUTOVER_DATE: &str = "2026-10-20";
         if end_date < CUTOVER_DATE {
             tracing::info!(start_date, end_date, "Routing uninvoiced query strictly to Old System (< 2026-10-20)");
@@ -787,6 +794,24 @@ impl SinopecHttpTransport {
         let money_str = crate::sinopec::models::format_fen_yuan(total_fen);
         let trans_ids_str = trans_ids.join(",");
 
+        // Pre-flight check: verify invoicelmt if reported by Sinopec
+        if let Some(ci) = sum_json.get("cardInfo") {
+            let quota_fen = crate::sinopec::parser::SinopecParser::parse_fen(ci.get("invoicelmt"));
+            if quota_fen > 0 && total_fen > quota_fen {
+                let avail_str = crate::sinopec::models::format_fen_yuan(quota_fen);
+                tracing::warn!(
+                    system = system_name,
+                    total_fen = total_fen,
+                    quota_fen = quota_fen,
+                    "Pre-flight quota exceeded before invoice submission"
+                );
+                return Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("中国石化[{system_name}]开票额度不足：待开金额 ¥{money_str} 超过网厅当前可用限额 ¥{avail_str}，请调整开票范围"),
+                ));
+            }
+        }
+
         let create_url = format!(
             "{}/corpgas/webjsp/invoicev2Action_createInvoice.json",
             self.base_url
@@ -926,6 +951,13 @@ impl SinopecHttpTransport {
         end_date: &str,
         mail: &str,
     ) -> AppResult<serde_json::Value> {
+        if start_date > end_date {
+            return Err(AppError::new(
+                ErrorCode::InvalidRequest,
+                format!("起始日期 ({start_date}) 不能大于截止日期 ({end_date})"),
+            ));
+        }
+
         const CUTOVER_DATE: &str = "2026-10-20";
         if end_date < CUTOVER_DATE {
             return self
@@ -947,46 +979,76 @@ impl SinopecHttpTransport {
             end_date
         );
 
-        let mut batches = Vec::new();
-        let mut total_submitted_fen: i64 = 0;
-        let mut total_trans_count = 0;
-
         let res_old = self
             .create_live_electronic_invoice_single(start_date, "2026-10-19", mail, false)
-            .await?;
-        if !res_old.get("skipped").and_then(|v| v.as_bool()).unwrap_or(false) {
-            total_submitted_fen += res_old.get("money_fen").and_then(|v| v.as_i64()).unwrap_or(0);
-            total_trans_count += res_old.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
-        }
-        batches.push(res_old);
-
+            .await;
         let res_new = self
             .create_live_electronic_invoice_single(CUTOVER_DATE, end_date, mail, true)
-            .await?;
-        if !res_new.get("skipped").and_then(|v| v.as_bool()).unwrap_or(false) {
-            total_submitted_fen += res_new.get("money_fen").and_then(|v| v.as_i64()).unwrap_or(0);
-            total_trans_count += res_new.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
-        }
-        batches.push(res_new);
+            .await;
 
-        if total_trans_count == 0 {
-            return Err(AppError::new(
-                ErrorCode::NoInvoiceableRecords,
-                format!("{start_date} 至 {end_date} 期间（旧版与新版）均无待开票记录"),
-            ));
-        }
+        match (res_old, res_new) {
+            (Ok(o), Ok(n)) => {
+                let mut batches = Vec::new();
+                let mut total_submitted_fen: i64 = 0;
+                let mut total_trans_count = 0;
 
-        Ok(serde_json::json!({
-            "spanning_cutover": true,
-            "total_batches": batches.len(),
-            "total_trans_count": total_trans_count,
-            "total_money": crate::sinopec::models::format_fen_yuan(total_submitted_fen),
-            "total_money_fen": total_submitted_fen,
-            "batches": batches
-        }))
+                if !o.get("skipped").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    total_submitted_fen += o.get("money_fen").and_then(|v| v.as_i64()).unwrap_or(0);
+                    total_trans_count += o.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
+                }
+                batches.push(o);
+
+                if !n.get("skipped").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    total_submitted_fen += n.get("money_fen").and_then(|v| v.as_i64()).unwrap_or(0);
+                    total_trans_count += n.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
+                }
+                batches.push(n);
+
+                if total_trans_count == 0 {
+                    return Err(AppError::new(
+                        ErrorCode::NoInvoiceableRecords,
+                        format!("{start_date} 至 {end_date} 期间（旧版与新版）均无待开票记录"),
+                    ));
+                }
+
+                Ok(serde_json::json!({
+                    "spanning_cutover": true,
+                    "total_batches": batches.len(),
+                    "total_trans_count": total_trans_count,
+                    "total_money": crate::sinopec::models::format_fen_yuan(total_submitted_fen),
+                    "total_money_fen": total_submitted_fen,
+                    "batches": batches
+                }))
+            }
+            (Ok(o), Err(e_new)) => {
+                let o_cnt = o.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
+                let o_money = o.get("money").and_then(|v| v.as_str()).unwrap_or("0.00");
+                tracing::error!(error = %e_new, "Spanning cutover: Batch 1 (Old) succeeded, but Batch 2 (New) failed");
+                Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("旧版开票批次已成功提交 (共 {o_cnt} 笔, ¥{o_money})，但新版开票批次提交失败: {e_new}"),
+                ))
+            }
+            (Err(e_old), Ok(n)) => {
+                let n_cnt = n.get("trans_count").and_then(|v| v.as_i64()).unwrap_or(0);
+                let n_money = n.get("money").and_then(|v| v.as_str()).unwrap_or("0.00");
+                tracing::error!(error = %e_old, "Spanning cutover: Batch 1 (Old) failed, but Batch 2 (New) succeeded");
+                Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("旧版开票批次提交失败: {e_old}；新版开票批次已成功提交 (共 {n_cnt} 笔, ¥{n_money})"),
+                ))
+            }
+            (Err(e_old), Err(e_new)) => {
+                tracing::error!(error_old = %e_old, error_new = %e_new, "Spanning cutover: both Old and New batches failed");
+                Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("旧版开票批次提交失败: {e_old}; 新版开票批次提交失败: {e_new}"),
+                ))
+            }
+        }
     }
 
-    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryInvoiceBill.json` to list issued electronic invoices.
+    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryPlainList.json` to list issued & failed electronic invoices.
     pub async fn query_live_plain_invoices(
         &self,
         start_date: &str,
@@ -1000,6 +1062,57 @@ impl SinopecHttpTransport {
             return Ok(None);
         }
         let card_no = self.resolve_default_card_no().await?;
+
+        // 1. Primary: query official invoice history endpoint (queryPlainList.json) from queryList.jsp
+        let plain_url = format!(
+            "{}/corpgas/webjsp/invoicev2Action_queryPlainList.json",
+            self.base_url
+        );
+        let plain_params = [
+            ("cardNo", card_no.as_str()),
+            ("startDate", start_date),
+            ("endDate", end_date),
+            ("pageNo", "1"),
+        ];
+        tracing::info!(
+            url = %plain_url,
+            card_no = %card_no,
+            start_date = start_date,
+            end_date = end_date,
+            "Querying Sinopec plain invoice records (queryPlainList)"
+        );
+        let resp = self
+            .client
+            .post(&plain_url)
+            .header("Cookie", self.cookie_header().await)
+            .header(
+                "Referer",
+                format!("{}/corpgas/webjsp/invoicev2/queryList.jsp", self.base_url),
+            )
+            .header("X-Requested-With", "XMLHttpRequest")
+            .form(&plain_params)
+            .send()
+            .await?;
+
+        if resp.status().as_u16() == 390 {
+            tracing::warn!("queryPlainList returned HTTP 390 session expired");
+            return Ok(None);
+        }
+        let bytes = resp.bytes().await?;
+        let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
+        if !cow.contains("default_corp.html") && !cow.contains("数据错误") {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&cow) {
+                if let Some(list) = parsed.get("list").and_then(|v| v.as_array()) {
+                    tracing::info!(
+                        record_count = list.len(),
+                        "Received invoice history list from queryPlainList"
+                    );
+                    return Ok(Some(parsed));
+                }
+            }
+        }
+
+        // 2. Secondary fallback: query invoice bill archives (queryInvoiceBill.json)
         let url = format!(
             "{}/corpgas/webjsp/invoicev2Action_queryInvoiceBill.json",
             self.base_url
@@ -1015,9 +1128,9 @@ impl SinopecHttpTransport {
             card_no = %card_no,
             start_date = start_date,
             end_date = end_date,
-            "Querying Sinopec digital invoice bill archives"
+            "Querying Sinopec digital invoice bill archives (queryInvoiceBill fallback)"
         );
-        let resp = self
+        let bill_resp = self
             .client
             .post(&url)
             .header("Cookie", self.cookie_header().await)
@@ -1029,17 +1142,17 @@ impl SinopecHttpTransport {
             .form(&params)
             .send()
             .await?;
-        if resp.status().as_u16() == 390 {
+        if bill_resp.status().as_u16() == 390 {
             tracing::warn!("queryInvoiceBill returned HTTP 390 session expired");
             return Ok(None);
         }
-        let bytes = resp.bytes().await?;
-        let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
-        if cow.contains("default_corp.html") || cow.contains("数据错误") {
+        let b_bytes = bill_resp.bytes().await?;
+        let (b_cow, _, _) = encoding_rs::GB18030.decode(&b_bytes);
+        if b_cow.contains("default_corp.html") || b_cow.contains("数据错误") {
             tracing::warn!("queryInvoiceBill returned login redirect or DataError page");
             return Ok(None);
         }
-        let parsed: serde_json::Value = serde_json::from_str(&cow)
+        let parsed: serde_json::Value = serde_json::from_str(&b_cow)
             .map_err(|e| AppError::new(ErrorCode::ApiContractChanged, format!("Invalid invoice bill JSON: {e}")))?;
         tracing::info!(
             code = parsed.get("code").and_then(|v| v.as_i64()).unwrap_or(0),
@@ -1047,6 +1160,58 @@ impl SinopecHttpTransport {
             "Received digital invoice bill archives from Sinopec"
         );
         Ok(Some(parsed))
+    }
+
+    /// Calls `POST /corpgas/webjsp/invoicev2Action_reCreatePlainInvoice.json` to retry/re-issue a failed invoice.
+    pub async fn recreate_plain_invoice(
+        &self,
+        invoice_sequence: &str,
+        einv_req_key: &str,
+        date: &str,
+        fplx: &str,
+        kplx: &str,
+    ) -> AppResult<serde_json::Value> {
+        let card_no = self.resolve_default_card_no().await?;
+        let url = format!(
+            "{}/corpgas/webjsp/invoicev2Action_reCreatePlainInvoice.json",
+            self.base_url
+        );
+        let params = [
+            ("cardNo", card_no.as_str()),
+            ("invoiceSequence", invoice_sequence),
+            ("einvReqKey", einv_req_key),
+            ("date", date),
+            ("fplx", fplx),
+            ("kplx", kplx),
+        ];
+        tracing::info!(
+            url = %url,
+            sequence = %invoice_sequence,
+            einv_req_key = %einv_req_key,
+            "Re-creating failed plain invoice"
+        );
+        let resp = self
+            .client
+            .post(&url)
+            .header("Cookie", self.cookie_header().await)
+            .header(
+                "Referer",
+                format!("{}/corpgas/webjsp/invoicev2/queryList.jsp", self.base_url),
+            )
+            .header("X-Requested-With", "XMLHttpRequest")
+            .form(&params)
+            .send()
+            .await?;
+        let bytes = resp.bytes().await?;
+        let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
+        let parsed: serde_json::Value = serde_json::from_str(&cow)
+            .map_err(|e| AppError::new(ErrorCode::ApiContractChanged, format!("Invalid recreate invoice JSON: {e}")))?;
+        if let Some(msg) = parsed.get("message").and_then(|v| v.as_str()) {
+            if !msg.is_empty() {
+                return Err(AppError::new(ErrorCode::InvalidRequest, format!("中国石化补开发票失败: {msg}")));
+            }
+        }
+        Ok(parsed)
     }
 
     /// Calls `POST /corpgas/webjsp/billQueryAction_chargeDetail.json` to query fuel card recharge history.

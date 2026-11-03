@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
         loop {
             interval.tick().await;
             let creds = keepalive_state.auth.credentials().load().ok().flatten();
-            if let Some(c) = creds {
+            if let Some(_c) = creds {
                 let status = keepalive_state.auth.status().await;
                 if let Ok(st) = status {
                     if st.verified {

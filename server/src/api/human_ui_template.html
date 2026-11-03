@@ -613,8 +613,8 @@ animation: pulseBorder 1.5s infinite;
 </div>
 <div class="kpi-card">
 <div class="kpi-label">主卡当前卡账余额 (****0729)</div>
-<div class="kpi-val" id="kpi-balance">¥30.95</div>
-<div class="kpi-meta">发卡网点：东丽空港经四路站1292</div>
+<div class="kpi-val tabular" id="kpi-balance">加载中...</div>
+<div class="kpi-meta" id="kpi-balance-meta">发卡网点：东丽空港经四路站1292</div>
 </div>
 <div class="kpi-card">
 <div class="kpi-label" id="kpi-recent-inv-label">最近已开具数电专票</div>
@@ -698,8 +698,8 @@ animation: pulseBorder 1.5s infinite;
 <div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:2px;">孟祥山 (12011019921213****)</div>
 </div>
 <div>
-<div style="font-size:12px;color:#64748b;font-weight:600;">当前已圈存卡内芯片余额</div>
-<div style="font-size:16px;font-weight:800;color:#16a34a;margin-top:2px;">¥30.95 (已分配未圈存: ¥0.00)</div>
+<div style="font-size:12px;color:#64748b;font-weight:600;">主卡芯片余额与待圈存</div>
+<div id="auth-hub-balance" class="tabular" style="font-size:16px;font-weight:800;color:#16a34a;margin-top:2px;">正在拉取实时数据...</div>
 </div>
 </div>
 <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
@@ -1795,22 +1795,71 @@ rMeta.textContent = '申请批次: ' + latest.id + ' (税控排队中)';
 
 const rows = list.length === 0
 ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">暂无已开具发票记录</td></tr>'
-: list.map((inv, idx) =>
-'<tr' + (inv.invoice_no ? '' : ' style="background:#fefce8;"') + '>' +
-'<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
-'<td class="tabular">' + inv.invoice_date + '</td>' +
-'<td><code>' + (inv.invoice_no || inv.id) + '</code>' + (inv.invoice_no ? '' : ' <span class="chip" style="color:#b45309;background:#fef3c7;">税控排队中</span>') + '</td>' +
-'<td>' + (inv.period || (inv.invoice_no ? '已开具数电专票' : '已向中石化税控系统提交开票')) + '</td>' +
-'<td class="num"><strong style="color:var(--status-green);">¥' + inv.amount + '</strong></td>' +
-'<td class="num">' + (inv.download_path ? ('<a class="btn btn-primary" style="padding:4px 12px;font-size:12px;" href="' + inv.download_path + '" target="_blank" rel="noreferrer">下载发票</a>') : '<span style="color:var(--text-muted);font-size:12px;">税控开票处理中</span>') + '</td>' +
-'</tr>'
-).join('');
+: list.map((inv, idx) => {
+let statusBadge = '';
+let actionBtn = '';
+if (inv.status === 'ISSUED') {
+statusBadge = '<span class="badge" style="background:#dcfce7;color:#166534;font-weight:700;padding:3px 8px;border-radius:4px;">开票成功</span>' +
+(inv.invoice_no ? (' <span style="font-size:11px;color:var(--text-muted);font-family:monospace;">(' + inv.invoice_no + ')</span>') : '');
+actionBtn = (inv.download_path ? ('<a class="btn btn-primary" style="padding:4px 10px;font-size:12px;margin-right:6px;" href="' + inv.download_path + '" target="_blank" rel="noreferrer">下载发票</a>') : '') +
+'<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
+} else if (inv.status === 'FAILED') {
+statusBadge = '<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;padding:3px 8px;border-radius:4px;">开票失败</span>' +
+' <span style="font-size:11px;color:#b91c1c;">(税控未生成)</span>';
+actionBtn = '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;color:#991b1b;border-color:#fca5a5;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
+} else if (inv.status === 'PENDING') {
+statusBadge = '<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700;padding:3px 8px;border-radius:4px;">开票中</span>';
+actionBtn = '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
+} else {
+statusBadge = '<span class="badge" style="background:#f1f5f9;color:#475569;font-weight:700;padding:3px 8px;border-radius:4px;">' + (inv.status || '已归档') + '</span>';
+actionBtn = '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
+}
+
+return '<tr>' +
+'<td style="text-align:left;font-weight:600;color:var(--text-primary);">' + (inv.buyer_name || '天津祺富机械加工有限公司') + '</td>' +
+'<td class="num"><strong style="color:var(--status-green);font-size:14px;">' + inv.amount + '</strong></td>' +
+'<td>' + (inv.invoice_type || '增值税发票') + '</td>' +
+'<td class="tabular" style="font-size:12px;">' + inv.invoice_date + '</td>' +
+'<td>' + statusBadge + '</td>' +
+'<td class="num">' + actionBtn + '</td>' +
+'</tr>';
+}).join('');
 document.getElementById('history-table-wrap').innerHTML =
 '<table>' +
-'<thead><tr><th style="width:50px;text-align:center;">序号</th><th>申请/开票时间</th><th>数电发票号码 / 批次流水号</th><th>状态说明</th><th class="num">发票金额 (CNY)</th><th class="num">操作</th></tr></thead>' +
+'<thead><tr><th style="text-align:left;">发票抬头</th><th class="num">开票金额（元）</th><th>票据类型</th><th>开票时间</th><th>开票状态</th><th class="num">操作</th></tr></thead>' +
 '<tbody>' + rows + '</tbody>' +
 '</table>';
 if (btn) { btn.disabled = false; btn.textContent = '刷新发票档案'; }
+}
+
+function showInvoiceDetailDialog(idx) {
+let list = [];
+try {
+const cached = JSON.parse(document.getElementById('history-table-wrap').dataset.cache || '[]');
+list = cached;
+} catch(e) {}
+fetch('/api/v1/invoices').then(r => r.json()).then(data => {
+if (data.ok && data.data && data.data[idx]) {
+const inv = data.data[idx];
+const isSuccess = inv.status === 'ISSUED';
+let msg = '【中国石化发票详情】\n\n' +
+'发票抬头：' + (inv.buyer_name || '天津祺富机械加工有限公司') + '\n' +
+'开票金额：¥' + inv.amount + '\n' +
+'票据类型：' + inv.invoice_type + '\n' +
+'申请/开票时间：' + inv.invoice_date + '\n' +
+'业务流水号：' + inv.id + '\n' +
+'开票状态：' + (isSuccess ? '开票成功' : (inv.status === 'FAILED' ? '开票失败' : inv.status)) + '\n';
+if (inv.invoice_no) {
+msg += '数电发票号码：' + inv.invoice_no + '\n';
+}
+if (inv.download_path) {
+msg += '\n电子版链接：' + inv.download_path + '\n';
+} else if (inv.status === 'FAILED') {
+msg += '\n说明：该批次在向中石化税控系统提交时未生成正式税号，稍后可在网厅重新补开。\n';
+}
+alert(msg);
+}
+});
 }
 // Tab 4 State & Engine
 let cachedAllocationData = null;
@@ -1825,6 +1874,10 @@ const cardDirectory = [
 function renderCardMatrix() {
 const container = document.getElementById('card-matrix-container');
 if (!container) return;
+if (!cachedAllocationData) {
+container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);background:#f8fafc;border-radius:8px;border:1px dashed #cbd5e1;">正在同步中国石化网厅实时芯片余额与待圈存数据...</div>';
+return;
+}
 const ledger = cachedAllocationData?.cards_ledger || {};
 const mc = cachedAllocationData?.master_card || {};
 const sum = cachedAllocationData?.summary || {};
@@ -1841,16 +1894,23 @@ html +=
 '<span class="badge ' + (isAllActive ? 'badge-primary' : 'badge-neutral') + '">企业总览</span>' +
 '<span style="font-size:11px;font-weight:700;color:var(--brand-blue);">4 张卡合并</span>' +
 '</div>' +
-'<div style="font-size:14px;font-weight:800;color:var(--text-primary);margin-bottom:2px;">全部卡片汇总大盘</div>' +
-'<div style="font-size:12px;color:var(--text-muted);">1 主卡 + 3 已激活副卡</div>' +
+'<div style="font-size:14px;font-weight:800;color:var(--text-primary);margin-bottom:6px;">全部卡片汇总大盘</div>' +
+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-bottom:8px;">' +
+'<div style="border-right:1px solid #e2e8f0;padding-right:6px;">' +
+'<div style="font-size:11px;color:#64748b;font-weight:600;">芯片可用总额</div>' +
+'<div class="tabular" style="font-size:15px;font-weight:800;color:#1e40af;margin-top:2px;">¥' + totalLoaded + '</div>' +
+'<div style="font-size:10px;color:#059669;margin-top:2px;">4卡芯片内合计</div>' +
 '</div>' +
-'<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:baseline;">' +
-'<span style="font-size:11px;color:var(--text-muted);">芯片可用总额:</span>' +
-'<span class="tabular" style="font-size:13px;font-weight:800;color:var(--brand-blue);">¥' + totalLoaded + '</span>' +
+'<div style="padding-left:6px;">' +
+'<div style="font-size:11px;color:' + (hasTotalUnloaded ? '#b45309' : '#64748b') + ';font-weight:600;">待圈存总额</div>' +
+'<div class="tabular" style="font-size:15px;font-weight:800;color:' + (hasTotalUnloaded ? '#d97706' : '#64748b') + ';margin-top:2px;">¥' + totalUnloaded + '</div>' +
+'<div style="font-size:10px;color:' + (hasTotalUnloaded ? '#d97706' : '#94a3b8') + ';margin-top:2px;">' + (hasTotalUnloaded ? '副卡待插卡' : '全额圈存') + '</div>' +
 '</div>' +
-'<div style="margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;">' +
-'<span style="font-size:11px;color:var(--text-muted);">待圈存总额:</span>' +
-'<span class="tabular" style="font-size:12px;font-weight:700;color:' + (hasTotalUnloaded ? '#d97706' : 'var(--text-muted)') + ';">¥' + totalUnloaded + '</span>' +
+'</div>' +
+'</div>' +
+'<div style="background:' + (hasTotalUnloaded ? '#fffbeb' : '#f0fdf4') + ';border:1px solid ' + (hasTotalUnloaded ? '#fde68a' : '#bbf7d0') + ';border-radius:4px;padding:4px 8px;font-size:11px;display:flex;align-items:center;justify-content:space-between;">' +
+'<span style="color:' + (hasTotalUnloaded ? '#b45309' : '#166534') + ';">' + (hasTotalUnloaded ? '副卡存在在途待圈存' : '资金已全额在卡') + '</span>' +
+'<strong style="color:' + (hasTotalUnloaded ? '#d97706' : '#16a34a') + ';">' + (hasTotalUnloaded ? ('¥' + totalUnloaded) : '正常') + '</strong>' +
 '</div>' +
 '</div>';
 // Master Card & Vice Cards
@@ -1861,32 +1921,41 @@ const cardLedger = ledger[c.id] || {};
 const loadedBal = cardLedger.loaded_balance || (c.isMaster ? mc.loaded_balance : '0.00') || '0.00';
 const unloadedBal = cardLedger.unloaded_prebalance || (c.isMaster ? mc.unloaded_prebalance : '0.00') || '0.00';
 const hasUnloaded = parseFloat(unloadedBal) > 0;
-const badgeClass = c.isMaster ? 'badge-primary' : 'badge-success';
+const badgeClass = c.isMaster ? 'badge-primary' : 'badge-neutral';
 html +=
 '<div class="card-matrix-item ' + (isActive ? 'active' : '') + '" onclick="switchFocusCard(\'' + c.id + '\')">' +
 '<div>' +
 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+'<div style="display:flex;align-items:center;gap:6px;">' +
 '<span class="badge ' + badgeClass + '">' + (c.isMaster ? '主卡' : '副卡') + '</span>' +
+'<span style="font-size:12px;font-weight:700;color:var(--text-primary);font-family:monospace;">' + c.masked + '</span>' +
+'</div>' +
 '<button type="button" class="btn-icon-subtle" onclick="event.stopPropagation(); openEditRemarkModal(\'' + c.id + '\')" title="修改备注">' +
-'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>' +
+'<svg width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z\"/></svg>' +
 '<span>备注</span>' +
 '</button>' +
 '</div>' +
-'<div style="font-size:13px;font-weight:700;color:var(--text-primary);font-family:monospace;">' + c.masked + '</div>' +
-'<div style="font-size:12px;font-weight:600;color:#1e40af;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + remark + '">' + remark + '</div>' +
+'<div style="font-size:13px;font-weight:800;color:#0f172a;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + remark + '">' + remark + '</div>' +
+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-bottom:8px;">' +
+'<div style="border-right:1px solid #e2e8f0;padding-right:6px;">' +
+'<div style="font-size:11px;color:#64748b;font-weight:600;">芯片余额</div>' +
+'<div class="tabular" style="font-size:15px;font-weight:800;color:#1e40af;margin-top:2px;">¥' + loadedBal + '</div>' +
+'<div style="font-size:10px;color:#059669;margin-top:2px;">可刷卡加油</div>' +
 '</div>' +
-'<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:baseline;">' +
-'<span style="font-size:11px;color:var(--text-muted);">芯片余额:</span>' +
-'<span class="tabular" style="font-size:13px;font-weight:700;color:var(--brand-blue);">¥' + loadedBal + '</span>' +
+'<div style="padding-left:6px;">' +
+'<div style="font-size:11px;color:' + (hasUnloaded ? '#b45309' : '#64748b') + ';font-weight:600;">待圈存</div>' +
+'<div class="tabular" style="font-size:15px;font-weight:800;color:' + (hasUnloaded ? '#d97706' : '#64748b') + ';margin-top:2px;">¥' + unloadedBal + '</div>' +
+'<div style="font-size:10px;color:' + (hasUnloaded ? '#d97706' : '#94a3b8') + ';margin-top:2px;">' + (hasUnloaded ? '油站待插卡' : '无待圈存') + '</div>' +
 '</div>' +
-'<div style="margin-top:2px;display:flex;justify-content:space-between;align-items:baseline;">' +
-'<span style="font-size:11px;color:var(--text-muted);">待圈存:</span>' +
-'<span class="tabular" style="font-size:12px;font-weight:700;color:' + (hasUnloaded ? '#d97706' : 'var(--text-muted)') + ';">¥' + unloadedBal + '</span>' +
+'</div>' +
+'</div>' +
+'<div style="background:' + (hasUnloaded ? '#fffbeb' : '#f0fdf4') + ';border:1px solid ' + (hasUnloaded ? '#fde68a' : '#bbf7d0') + ';border-radius:4px;padding:4px 8px;font-size:11px;display:flex;align-items:center;justify-content:space-between;">' +
+'<span style="color:' + (hasUnloaded ? '#b45309' : '#166534') + ';">' + (hasUnloaded ? '加能站待插卡圈存' : '资金全额在卡') + '</span>' +
+'<strong style="color:' + (hasUnloaded ? '#d97706' : '#16a34a') + ';">' + (hasUnloaded ? ('¥' + unloadedBal) : '已圈存') + '</strong>' +
 '</div>' +
 '</div>';
 });
 container.innerHTML = html;
-// Update dropdown selects with new remarks
 updateDropdownSelectors();
 }
 function updateDropdownSelectors() {
@@ -2394,6 +2463,13 @@ const pbEl = document.getElementById('kpi-pool-balance');
 if (pbEl) pbEl.textContent = '¥' + (b.pool_balance || '0.00');
 const mlEl = document.getElementById('kpi-master-loaded');
 if (mlEl) mlEl.textContent = '¥' + (mc.loaded_balance || '626.78');
+const kbEl = document.getElementById('kpi-balance');
+if (kbEl) kbEl.textContent = '¥' + (mc.loaded_balance || '626.78');
+const ahbEl = document.getElementById('auth-hub-balance');
+if (ahbEl) {
+const mUnloaded = mc.unloaded_prebalance || '0.00';
+ahbEl.innerHTML = '¥' + (mc.loaded_balance || '626.78') + ' <span style="font-size:13px;color:#d97706;font-weight:700;">(待圈存: ¥' + mUnloaded + ')</span>';
+}
 const mmEl = document.getElementById('kpi-master-meta');
 if (mmEl) mmEl.textContent = '主卡 ' + (mc.masked_card_no || '10001112****0729') + ' · 孟祥山 (芯片 ¥' + (mc.loaded_balance || '626.78') + ')';
 const ubEl = document.getElementById('kpi-unloaded-balance');

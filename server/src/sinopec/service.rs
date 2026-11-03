@@ -588,36 +588,82 @@ impl SinopecService {
         }
 
         let remote_inv_id = format!("inv_{}", Uuid::new_v4().simple());
-        let completed_op = OperationRecord {
-            id: op_id.clone(),
-            operation_type: "CREATE_INVOICE".to_string(),
-            phase: "SUBMITTED".to_string(),
-            state: "COMPLETED".to_string(),
-            parameters: serde_json::to_value(&preview).unwrap_or_default(),
-            idempotency_key: Some(idempotency_key.clone()),
-            request_hash: Some(request_hash.clone()),
-            remote_id: Some(remote_inv_id.clone()),
-            remote_result: Some(serde_json::json!({
+        let (completed_op, result_json) = if self.config.demo_mode {
+            let op = OperationRecord {
+                id: op_id.clone(),
+                operation_type: "CREATE_INVOICE".to_string(),
+                phase: "SUBMITTED".to_string(),
+                state: "COMPLETED".to_string(),
+                parameters: serde_json::to_value(&preview).unwrap_or_default(),
+                idempotency_key: Some(idempotency_key.clone()),
+                request_hash: Some(request_hash.clone()),
+                remote_id: Some(remote_inv_id.clone()),
+                remote_result: Some(serde_json::json!({
+                    "invoice_id": remote_inv_id,
+                    "total_amount": preview.total_amount,
+                    "transaction_count": preview.transaction_count,
+                    "status": "ISSUED"
+                })),
+                error_code: None,
+                created_at: now.clone(),
+                updated_at: Utc::now().to_rfc3339(),
+            };
+            let res = serde_json::json!({
+                "operation_id": op_id,
+                "idempotency_key": idempotency_key,
                 "invoice_id": remote_inv_id,
+                "status": "ISSUED",
                 "total_amount": preview.total_amount,
                 "transaction_count": preview.transaction_count,
-                "status": "ISSUED"
-            })),
-            error_code: None,
-            created_at: now.clone(),
-            updated_at: Utc::now().to_rfc3339(),
+                "invoice_type": preview.invoice_type
+            });
+            (op, res)
+        } else {
+            // Live production submission
+            let live_res = self
+                .http
+                .create_live_electronic_invoice(&req.start_date, &req.end_date, "335356119@qq.com")
+                .await?;
+            let inv_id = live_res
+                .get("invoice_no")
+                .or_else(|| {
+                    live_res
+                        .get("batches")
+                        .and_then(|b| b.get(0))
+                        .and_then(|b0| b0.get("invoice_no"))
+                })
+                .and_then(|v| v.as_str())
+                .unwrap_or(&remote_inv_id)
+                .to_string();
+            let op = OperationRecord {
+                id: op_id.clone(),
+                operation_type: "CREATE_INVOICE".to_string(),
+                phase: "SUBMITTED".to_string(),
+                state: "COMPLETED".to_string(),
+                parameters: serde_json::to_value(&preview).unwrap_or_default(),
+                idempotency_key: Some(idempotency_key.clone()),
+                request_hash: Some(request_hash.clone()),
+                remote_id: Some(inv_id.clone()),
+                remote_result: Some(live_res.clone()),
+                error_code: None,
+                created_at: now.clone(),
+                updated_at: Utc::now().to_rfc3339(),
+            };
+            let res = serde_json::json!({
+                "operation_id": op_id,
+                "idempotency_key": idempotency_key,
+                "invoice_id": inv_id,
+                "status": "ISSUED",
+                "total_amount": preview.total_amount,
+                "transaction_count": preview.transaction_count,
+                "invoice_type": preview.invoice_type,
+                "live_submission": live_res
+            });
+            (op, res)
         };
         self.store.upsert_operation(&completed_op).await?;
 
-        Ok(serde_json::json!({
-            "operation_id": op_id,
-            "idempotency_key": idempotency_key,
-            "invoice_id": remote_inv_id,
-            "status": "ISSUED",
-            "total_amount": preview.total_amount,
-            "transaction_count": preview.transaction_count,
-            "invoice_type": preview.invoice_type
-        }))
+        Ok(result_json)
     }
 
     pub async fn list_invoices(&self) -> AppResult<Vec<InvoiceRecord>> {
@@ -627,22 +673,36 @@ impl SinopecService {
             .await
         {
             let raw_list = live_json
-                .get("detailList")
+                .get("list")
                 .and_then(|v| v.as_array())
-                .or_else(|| live_json.get("list").and_then(|v| v.as_array()));
+                .or_else(|| live_json.get("detailList").and_then(|v| v.as_array()));
 
             if let Some(arr) = raw_list {
                 let out = arr
                     .iter()
+                    .filter(|item| {
+                        let name = item.get("customName").or_else(|| item.get("title")).and_then(|v| v.as_str()).unwrap_or("");
+                        name != "合计"
+                    })
                     .map(|item| {
                         let fen = SinopecParser::parse_fen(item.get("money"));
                         let raw_date = item
-                            .get("date")
-                            .or_else(|| item.get("addDate"))
+                            .get("addDate")
+                            .or_else(|| item.get("date"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("2026-09-25");
                         let date_fmt = if raw_date.contains('-') {
-                            raw_date.split(' ').next().unwrap_or(raw_date).to_string()
+                            raw_date.to_string()
+                        } else if raw_date.len() == 14 {
+                            format!(
+                                "{}-{}-{} {}:{}:{}",
+                                &raw_date[0..4],
+                                &raw_date[4..6],
+                                &raw_date[6..8],
+                                &raw_date[8..10],
+                                &raw_date[10..12],
+                                &raw_date[12..14]
+                            )
                         } else if raw_date.len() >= 8 {
                             format!(
                                 "{}-{}-{}",
@@ -654,20 +714,20 @@ impl SinopecService {
                             raw_date.to_string()
                         };
                         let seq = item
-                            .get("sequence")
-                            .or_else(|| item.get("id"))
+                            .get("id")
+                            .or_else(|| item.get("sequence"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
                         let inv_no = item
-                            .get("invoiceNumber")
-                            .or_else(|| item.get("invoiceNo"))
+                            .get("invoiceNo")
+                            .or_else(|| item.get("invoiceNumber"))
                             .and_then(|v| v.as_str())
                             .filter(|s| !s.is_empty())
                             .map(|s| s.to_string());
                         let buyer = item
-                            .get("customName")
-                            .or_else(|| item.get("title"))
+                            .get("title")
+                            .or_else(|| item.get("customName"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("天津祺富机械加工有限公司")
                             .to_string();
@@ -678,6 +738,49 @@ impl SinopecService {
                             .filter(|s| !s.is_empty())
                             .map(|s| s.to_string());
 
+                        // Status recognition:
+                        // 1: 开票中 (PENDING)
+                        // 2: 开票成功 (ISSUED)
+                        // 3: 开票失败 (FAILED)
+                        // 4: 已红冲 (CREDITED)
+                        // 5: 已撤销 (REVOKED)
+                        // 6: 已作废 (CANCELLED)
+                        let st_val = item.get("status").and_then(|v| v.as_i64());
+                        let status_str = match st_val {
+                            Some(1) => "PENDING".to_string(),
+                            Some(2) => "ISSUED".to_string(),
+                            Some(3) => "FAILED".to_string(),
+                            Some(4) => "CREDITED".to_string(),
+                            Some(5) => "REVOKED".to_string(),
+                            Some(6) => "CANCELLED".to_string(),
+                            _ => {
+                                if inv_no.is_some() {
+                                    "ISSUED".to_string()
+                                } else {
+                                    "FAILED".to_string()
+                                }
+                            }
+                        };
+
+                        let fplx = item
+                            .get("fplx")
+                            .or_else(|| item.get("invoiceType"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("02");
+                        let inv_type_str = match fplx {
+                            "01" => "增值税普通发票",
+                            "02" => "增值税发票",
+                            "11" => "燃油附加费",
+                            _ => "数电增值税专用发票",
+                        };
+
+                        let file_st = match status_str.as_str() {
+                            "ISSUED" => "READY",
+                            "PENDING" => "GENERATING",
+                            "FAILED" => "FAILED",
+                            _ => "UNAVAILABLE",
+                        };
+
                         InvoiceRecord {
                             id: if seq.is_empty() {
                                 inv_no.clone().unwrap_or_else(|| format!("inv_{}", Uuid::new_v4().simple()))
@@ -686,13 +789,13 @@ impl SinopecService {
                             },
                             invoice_no: inv_no,
                             invoice_date: date_fmt,
-                            invoice_type: "数电增值税专用发票".to_string(),
+                            invoice_type: inv_type_str.to_string(),
                             buyer_name: buyer,
                             amount: format_fen_yuan(fen),
                             amount_fen: fen,
-                            status: "ISSUED".to_string(),
+                            status: status_str,
                             file_format: "PDF/OFD".to_string(),
-                            file_status: "READY".to_string(),
+                            file_status: file_st.to_string(),
                             download_path: dl_url,
                         }
                     })
