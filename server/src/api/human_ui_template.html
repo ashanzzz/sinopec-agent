@@ -1022,12 +1022,13 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 </select>
 <input type="date" id="tx_start" value="2026-01-01" style="padding:4px 8px;font-size:12px;" />
 <span>至</span>
-<input type="date" id="tx_end" value="2026-09-25" style="padding:4px 8px;font-size:12px;" />
+<input type="date" id="tx_end" value="2026-11-03" style="padding:4px 8px;font-size:12px;" />
 <div class="btn-preset-group">
-<button type="button" class="btn-preset" onclick="setFlowDatePreset('tx', 'month')">本月</button>
+<button type="button" class="btn-preset" onclick="setFlowDatePreset('tx', 'this_month')">本月</button>
+<button type="button" class="btn-preset" onclick="setFlowDatePreset('tx', 'last_month')">上月</button>
+<button type="button" class="btn-preset active" onclick="setFlowDatePreset('tx', 'this_year')">本年(2026)</button>
 <button type="button" class="btn-preset" onclick="setFlowDatePreset('tx', '30d')">近30天</button>
 <button type="button" class="btn-preset" onclick="setFlowDatePreset('tx', '90d')">近90天</button>
-<button type="button" class="btn-preset active" onclick="setFlowDatePreset('tx', 'year')">2026全年</button>
 </div>
 <button type="button" class="btn btn-primary" id="btn-query-tx-custom" style="padding:5px 12px;font-size:12px;" onclick="queryCustomTransactions()">
 查询消费明细
@@ -1057,12 +1058,13 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 </select>
 <input type="date" id="qc_start" value="2026-01-01" style="padding:4px 8px;font-size:12px;" />
 <span>至</span>
-<input type="date" id="qc_end" value="2026-09-25" style="padding:4px 8px;font-size:12px;" />
+<input type="date" id="qc_end" value="2026-11-03" style="padding:4px 8px;font-size:12px;" />
 <div class="btn-preset-group">
-<button type="button" class="btn-preset" onclick="setFlowDatePreset('qc', 'month')">本月</button>
+<button type="button" class="btn-preset" onclick="setFlowDatePreset('qc', 'this_month')">本月</button>
+<button type="button" class="btn-preset" onclick="setFlowDatePreset('qc', 'last_month')">上月</button>
+<button type="button" class="btn-preset active" onclick="setFlowDatePreset('qc', 'this_year')">本年(2026)</button>
 <button type="button" class="btn-preset" onclick="setFlowDatePreset('qc', '30d')">近30天</button>
 <button type="button" class="btn-preset" onclick="setFlowDatePreset('qc', '90d')">近90天</button>
-<button type="button" class="btn-preset active" onclick="setFlowDatePreset('qc', 'year')">2026全年</button>
 </div>
 <button type="button" class="btn btn-primary" id="btn-query-qc-custom" style="padding:5px 12px;font-size:12px;" onclick="queryCustomQuancun()">
 查询圈存明细
@@ -2258,26 +2260,40 @@ renderFocusCardBanner(cardNo);
 queryCustomAllocations();
 }
 function setFlowDatePreset(stream, preset) {
+const now = new Date();
+const pad = n => String(n).padStart(2, '0');
+const todayStr = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+
 let start = '2026-01-01';
-let end = '2026-09-25';
-if (preset === 'month') {
-start = '2026-09-01';
-end = '2026-09-25';
+let end = todayStr;
+
+if (preset === 'this_month' || preset === 'month') {
+start = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-01';
+end = todayStr;
+} else if (preset === 'last_month') {
+const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+const lmYear = prevMonthEnd.getFullYear();
+const lmMonth = pad(prevMonthEnd.getMonth() + 1);
+const lmDays = pad(prevMonthEnd.getDate());
+start = lmYear + '-' + lmMonth + '-01';
+end = lmYear + '-' + lmMonth + '-' + lmDays;
+} else if (preset === 'this_year' || preset === 'year') {
+start = now.getFullYear() + '-01-01';
+end = todayStr;
 } else if (preset === '30d') {
-start = '2026-08-25';
-end = '2026-09-25';
+const past = new Date(now.getTime() - 30 * 86400000);
+start = past.getFullYear() + '-' + pad(past.getMonth() + 1) + '-' + pad(past.getDate());
+end = todayStr;
 } else if (preset === '90d' || preset === '3months') {
-start = '2026-07-01';
-end = '2026-09-25';
-} else if (preset === 'year') {
-start = '2026-01-01';
-end = '2026-09-25';
+const past = new Date(now.getTime() - 90 * 86400000);
+start = past.getFullYear() + '-' + pad(past.getMonth() + 1) + '-' + pad(past.getDate());
+end = todayStr;
 } else if (preset === 'jan2026') {
 start = '2026-01-01';
 end = '2026-01-31';
 } else if (preset === 'all') {
 start = '2025-01-01';
-end = '2026-09-25';
+end = todayStr;
 }
 const sEl = document.getElementById(stream + '_start');
 const eEl = document.getElementById(stream + '_end');
