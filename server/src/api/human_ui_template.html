@@ -965,7 +965,7 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 <div id="focus-stat-unloaded" class="tabular" style="font-size:18px;font-weight:800;color:#d97706;">¥3,000.00</div>
 </div>
 <div style="text-align:right;border-left:1px solid #cbd5e1;padding-left:14px;">
-<div style="font-size:11px;color:var(--text-muted);font-weight:600;">累计划拨下发</div>
+<div style="font-size:11px;color:var(--text-muted);font-weight:600;">合计分配金额 (已圈+待圈)</div>
 <div id="focus-stat-alloc" class="tabular" style="font-size:18px;font-weight:800;color:#16a34a;">¥20,000.00</div>
 </div>
 <div style="text-align:right;border-left:1px solid #cbd5e1;padding-left:14px;">
@@ -1909,6 +1909,10 @@ html +=
 '<div style="font-size:10px;color:' + (hasTotalUnloaded ? '#d97706' : '#94a3b8') + ';margin-top:2px;">' + (hasTotalUnloaded ? '副卡待插卡' : '全额圈存') + '</div>' +
 '</div>' +
 '</div>' +
+'<div style="margin-bottom:8px;padding:6px 8px;background:#f1f5f9;border-radius:4px;display:flex;justify-content:space-between;align-items:center;font-size:11px;">' +
+'<span style="color:#475569;font-weight:600;">合计分配总额 (已圈+待圈):</span>' +
+'<strong class="tabular" style="color:#0f172a;font-size:13px;">¥' + (sum.total_allocated || '147,000.00') + '</strong>' +
+'</div>' +
 '</div>' +
 '<div style="background:' + (hasTotalUnloaded ? '#fffbeb' : '#f0fdf4') + ';border:1px solid ' + (hasTotalUnloaded ? '#fde68a' : '#bbf7d0') + ';border-radius:4px;padding:4px 8px;font-size:11px;display:flex;align-items:center;justify-content:space-between;">' +
 '<span style="color:' + (hasTotalUnloaded ? '#b45309' : '#166534') + ';">' + (hasTotalUnloaded ? '副卡存在在途待圈存' : '资金已全额在卡') + '</span>' +
@@ -1922,6 +1926,7 @@ const remark = getCardRemark(c.id);
 const cardLedger = ledger[c.id] || {};
 const loadedBal = cardLedger.loaded_balance || (c.isMaster ? mc.loaded_balance : '0.00') || '0.00';
 const unloadedBal = cardLedger.unloaded_prebalance || (c.isMaster ? mc.unloaded_prebalance : '0.00') || '0.00';
+const totalAlloc = cardLedger.total_allocated || (parseFloat(loadedBal) + parseFloat(unloadedBal)).toFixed(2);
 const hasUnloaded = parseFloat(unloadedBal) > 0;
 const badgeClass = c.isMaster ? 'badge-primary' : 'badge-neutral';
 html +=
@@ -1949,6 +1954,10 @@ html +=
 '<div class="tabular" style="font-size:15px;font-weight:800;color:' + (hasUnloaded ? '#d97706' : '#64748b') + ';margin-top:2px;">¥' + unloadedBal + '</div>' +
 '<div style="font-size:10px;color:' + (hasUnloaded ? '#d97706' : '#94a3b8') + ';margin-top:2px;">' + (hasUnloaded ? '油站待插卡' : '无待圈存') + '</div>' +
 '</div>' +
+'</div>' +
+'<div style="margin-bottom:8px;padding:6px 8px;background:#f1f5f9;border-radius:4px;display:flex;justify-content:space-between;align-items:center;font-size:11px;">' +
+'<span style="color:#475569;font-weight:600;">合计分配金额 (已圈+待圈):</span>' +
+'<strong class="tabular" style="color:#0f172a;font-size:13px;">¥' + totalAlloc + '</strong>' +
 '</div>' +
 '</div>' +
 '<div style="background:' + (hasUnloaded ? '#fffbeb' : '#f0fdf4') + ';border:1px solid ' + (hasUnloaded ? '#fde68a' : '#bbf7d0') + ';border-radius:4px;padding:4px 8px;font-size:11px;display:flex;align-items:center;justify-content:space-between;">' +
@@ -2014,8 +2023,8 @@ if (descEl) descEl.textContent = '单位名下共 4 张卡片，芯片总可用�
 if (editBtn) editBtn.style.display = 'none';
 if (statLoaded) statLoaded.textContent = '¥' + (sum.total_loaded || '0.00');
 if (statUnloaded) statUnloaded.textContent = '¥' + unl;
-if (statAlloc) statAlloc.textContent = '¥' + (sum.total_allocated_to_vices || '20,000.00');
-if (statQuancun) statQuancun.textContent = '28 笔';
+if (statAlloc) statAlloc.textContent = '¥' + (sum.total_allocated || '147,000.00');
+if (statQuancun) statQuancun.textContent = '34 笔';
 if (statConsume) statConsume.textContent = '197 笔';
 } else {
 const cardObj = cardDirectory.find(c => c.id === cardNo) || { id: cardNo, holder: '孟祥山' };
@@ -2023,27 +2032,27 @@ const remark = getCardRemark(cardNo);
 const cardLedger = ledger[cardNo] || {};
 const loaded = cardLedger.loaded_balance || (cardObj.isMaster ? mc.loaded_balance : '0.00') || '0.00';
 const unloaded = cardLedger.unloaded_prebalance || (cardObj.isMaster ? mc.unloaded_prebalance : '0.00') || '0.00';
+const totalAlloc = cardLedger.total_allocated || (parseFloat(loaded) + parseFloat(unloaded)).toFixed(2);
 const hasUnloaded = parseFloat(unloaded) > 0;
 if (editBtn) editBtn.style.display = 'inline-flex';
 if (cardObj.isMaster) {
 if (badgeEl) { badgeEl.textContent = '单位多用户主卡'; badgeEl.className = 'badge badge-primary'; }
 if (statusBadgeEl) { statusBadgeEl.textContent = '正常卡 (发卡行: 空港经四路站1292)'; statusBadgeEl.className = 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '主卡 ' + cardNo + ' · ' + remark;
-if (descEl) descEl.textContent = '企业主卡，负责企业资金池下发划拨、增值税专票集中开具及日常加油消费。当前芯片余额 ¥' + loaded + (hasUnloaded ? ('，待圈存 ¥' + unloaded) : '，无待圈存资金') + '。';
+if (descEl) descEl.textContent = '企业主卡，负责企业资金池下发划拨、增值税专票集中开具及日常加油消费。当前芯片余额 ¥' + loaded + (hasUnloaded ? ('，待圈存 ¥' + unloaded) : '，无待圈存资金') + '，合计已分配入卡资金 ¥' + totalAlloc + '。';
 if (statLoaded) statLoaded.textContent = '¥' + loaded;
 if (statUnloaded) statUnloaded.textContent = '¥' + unloaded;
-if (statAlloc) statAlloc.textContent = '— (资金总池)';
+if (statAlloc) statAlloc.textContent = '¥' + totalAlloc;
 if (statQuancun) statQuancun.textContent = (cardLedger.quancun_count || 0) + ' 笔';
 if (statConsume) statConsume.textContent = (cardLedger.consume_count || 0) + ' 笔';
 } else {
 if (badgeEl) { badgeEl.textContent = cardObj.typeLabel; badgeEl.className = 'badge badge-success'; }
 if (statusBadgeEl) { statusBadgeEl.textContent = hasUnloaded ? '正常激活卡 · 存在待圈存' : '正常激活卡 · 资金已圈存'; statusBadgeEl.className = hasUnloaded ? 'badge badge-warning' : 'badge badge-success'; }
 if (titleEl) titleEl.textContent = '副卡 ' + cardNo + ' · ' + remark;
-if (descEl) descEl.textContent = '单位绑定副卡（持卡人: ' + cardObj.holder + '），芯片余额 ¥' + loaded + (hasUnloaded ? ('，尚有 ¥' + unloaded + ' 预分配待圈存资金（需在加油站自助机插卡写入芯片）') : '，无待圈存资金') + '。';
-const allocSum = (cardLedger.allocation_records || []).reduce((acc, a) => acc + (parseFloat(a.amount) || 0), 0);
+if (descEl) descEl.textContent = '单位绑定副卡（持卡人: ' + cardObj.holder + '），芯片余额 ¥' + loaded + (hasUnloaded ? ('，尚有 ¥' + unloaded + ' 预分配待圈存资金（需在加油站自助机插卡写入芯片）') : '，无待圈存资金') + '，累计分配资金 ¥' + totalAlloc + '。';
 if (statLoaded) statLoaded.textContent = '¥' + loaded;
 if (statUnloaded) statUnloaded.textContent = '¥' + unloaded;
-if (statAlloc) statAlloc.textContent = '¥' + allocSum.toFixed(2);
+if (statAlloc) statAlloc.textContent = '¥' + totalAlloc;
 if (statQuancun) statQuancun.textContent = (cardLedger.quancun_count || 0) + ' 笔';
 if (statConsume) statConsume.textContent = (cardLedger.consume_count || 0) + ' 笔';
 }

@@ -1557,14 +1557,18 @@ impl SinopecHttpTransport {
             .unwrap_or_default();
         let mut mc_qc = Vec::new();
         let mut mc_xf = Vec::new();
+        let mut mc_qc_total_fen: i64 = 0;
         for item in &master_logs {
             let tra = item.get("traName").and_then(|v| v.as_str()).unwrap_or("");
             if tra == "圈存" {
+                let amt = crate::sinopec::parser::SinopecParser::parse_fen(item.get("amount"));
+                mc_qc_total_fen += amt;
                 mc_qc.push(item.clone());
             } else if tra == "消费" {
                 mc_xf.push(item.clone());
             }
         }
+        let mc_allocated_fen = mc_qc_total_fen + primary_pre_fen;
         cards_ledger.insert(
             master_card_no.clone(),
             serde_json::json!({
@@ -1576,6 +1580,10 @@ impl SinopecHttpTransport {
                 "loaded_balance_fen": primary_loaded_fen,
                 "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(primary_pre_fen),
                 "unloaded_prebalance_fen": primary_pre_fen,
+                "quancun_total": crate::sinopec::models::format_fen_yuan(mc_qc_total_fen),
+                "quancun_total_fen": mc_qc_total_fen,
+                "total_allocated": crate::sinopec::models::format_fen_yuan(mc_allocated_fen),
+                "total_allocated_fen": mc_allocated_fen,
                 "quancun_count": mc_qc.len(),
                 "consume_count": mc_xf.len(),
                 "quancun_records": mc_qc,
@@ -1606,9 +1614,12 @@ impl SinopecHttpTransport {
                 .unwrap_or_default();
             let mut v_qc = Vec::new();
             let mut v_xf = Vec::new();
+            let mut v_qc_total_fen: i64 = 0;
             for item in &v_logs {
                 let tra = item.get("traName").and_then(|v| v.as_str()).unwrap_or("");
                 if tra == "圈存" {
+                    let amt = crate::sinopec::parser::SinopecParser::parse_fen(item.get("amount"));
+                    v_qc_total_fen += amt;
                     v_qc.push(item.clone());
                 } else if tra == "消费" {
                     v_xf.push(item.clone());
@@ -1620,6 +1631,7 @@ impl SinopecHttpTransport {
                 .cloned()
                 .collect();
 
+            let v_allocated_fen = v_qc_total_fen + pre_bal_fen;
             cards_ledger.insert(
                 v_card_no.to_string(),
                 serde_json::json!({
@@ -1631,6 +1643,10 @@ impl SinopecHttpTransport {
                     "loaded_balance_fen": c_bal_fen,
                     "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(pre_bal_fen),
                     "unloaded_prebalance_fen": pre_bal_fen,
+                    "quancun_total": crate::sinopec::models::format_fen_yuan(v_qc_total_fen),
+                    "quancun_total_fen": v_qc_total_fen,
+                    "total_allocated": crate::sinopec::models::format_fen_yuan(v_allocated_fen),
+                    "total_allocated_fen": v_allocated_fen,
                     "quancun_count": v_qc.len(),
                     "consume_count": v_xf.len(),
                     "allocation_count": v_allocs.len(),
@@ -1643,6 +1659,7 @@ impl SinopecHttpTransport {
 
         let total_all_loaded_fen = primary_loaded_fen + total_vices_loaded_fen;
         let total_all_unloaded_fen = primary_pre_fen + total_vices_pre_fen;
+        let total_all_allocated_fen = mc_allocated_fen + total_allocated_to_vices_fen;
 
         Ok(serde_json::json!({
             "company_name": comp_name,
@@ -1658,6 +1675,10 @@ impl SinopecHttpTransport {
                 "loaded_balance_fen": primary_loaded_fen,
                 "unloaded_prebalance": crate::sinopec::models::format_fen_yuan(primary_pre_fen),
                 "unloaded_prebalance_fen": primary_pre_fen,
+                "quancun_total": crate::sinopec::models::format_fen_yuan(mc_qc_total_fen),
+                "quancun_total_fen": mc_qc_total_fen,
+                "total_allocated": crate::sinopec::models::format_fen_yuan(mc_allocated_fen),
+                "total_allocated_fen": mc_allocated_fen,
             },
             "vice_cards": parsed_vice_cards,
             "vice_card_count": vice_card_count,
@@ -1667,6 +1688,8 @@ impl SinopecHttpTransport {
                 "total_loaded_fen": total_all_loaded_fen,
                 "total_unloaded": crate::sinopec::models::format_fen_yuan(total_all_unloaded_fen),
                 "total_unloaded_fen": total_all_unloaded_fen,
+                "total_allocated": crate::sinopec::models::format_fen_yuan(total_all_allocated_fen),
+                "total_allocated_fen": total_all_allocated_fen,
                 "total_allocated_to_vices": crate::sinopec::models::format_fen_yuan(total_allocated_to_vices_fen),
                 "total_allocated_to_vices_fen": total_allocated_to_vices_fen,
                 "has_vice_cards": vice_card_count > 0,
