@@ -27,7 +27,7 @@ fn test_config(research_mode: bool) -> AppConfig {
         auto_login: true,
         max_auth_attempts: 3,
         research_mode,
-        demo_mode: false,
+        demo_mode: true,
         allow_auto_submit: false,
         steel_base_url: "http://127.0.0.1:13000".to_string(),
         steel_cdp_url: "ws://127.0.0.1:19223".to_string(),

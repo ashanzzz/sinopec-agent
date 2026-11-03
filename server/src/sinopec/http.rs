@@ -472,12 +472,13 @@ impl SinopecHttpTransport {
         Ok("1000111200006330729".to_string())
     }
 
-    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryTransList.json` via POST form body.
-    pub async fn query_live_uninvoice_trans(
+    /// Calls `POST /corpgas/webjsp/invoicev2Action_queryTransList.json` (or `...New.json`) via POST form body.
+    pub async fn query_live_uninvoice_trans_single(
         &self,
         start_date: &str,
         end_date: &str,
         merge: &str,
+        is_new: bool,
     ) -> AppResult<Option<serde_json::Value>> {
         let disk_cookies = Self::load_cookies_from_disk(&self.cookie_file);
         if !disk_cookies.is_empty() {
@@ -487,10 +488,18 @@ impl SinopecHttpTransport {
             return Ok(None);
         }
         let card_no = self.resolve_default_card_no().await?;
-        let url = format!(
-            "{}/corpgas/webjsp/invoicev2Action_queryTransList.json",
-            self.base_url
-        );
+        let (endpoint, referer_page) = if is_new {
+            (
+                "invoicev2Action_queryTransListNew.json",
+                "invoicev2/createInvoiceNew.jsp",
+            )
+        } else {
+            (
+                "invoicev2Action_queryTransList.json",
+                "invoicev2/createInvoice.jsp",
+            )
+        };
+        let url = format!("{}/corpgas/webjsp/{}", self.base_url, endpoint);
         let params = [
             ("cardNo", card_no.as_str()),
             ("merge", merge),
@@ -506,10 +515,7 @@ impl SinopecHttpTransport {
             .header("Cookie", self.cookie_header().await)
             .header(
                 "Referer",
-                format!(
-                    "{}/corpgas/webjsp/invoicev2/createInvoice.jsp",
-                    self.base_url
-                ),
+                format!("{}/corpgas/webjsp/{}", self.base_url, referer_page),
             )
             .header("X-Requested-With", "XMLHttpRequest")
             .form(&params)
@@ -524,6 +530,82 @@ impl SinopecHttpTransport {
             return Ok(None);
         }
         Ok(serde_json::from_str(&cow).ok())
+    }
+
+    /// Automatically routes queries based on Sinopec's system cutover date (2026-10-20).
+    /// If range spans before and after 2026-10-20, queries both endpoints and merges them.
+    pub async fn query_live_uninvoice_trans(
+        &self,
+        start_date: &str,
+        end_date: &str,
+        merge: &str,
+    ) -> AppResult<Option<serde_json::Value>> {
+        const CUTOVER_DATE: &str = "2026-10-20";
+        if end_date < CUTOVER_DATE {
+            return self
+                .query_live_uninvoice_trans_single(start_date, end_date, merge, false)
+                .await;
+        }
+        if start_date >= CUTOVER_DATE {
+            return self
+                .query_live_uninvoice_trans_single(start_date, end_date, merge, true)
+                .await;
+        }
+
+        // Spanning cutover: query [start_date, 2026-10-19] via old API and [2026-10-20, end_date] via new API
+        let old_res = self
+            .query_live_uninvoice_trans_single(start_date, "2026-10-19", merge, false)
+            .await?;
+        let new_res = self
+            .query_live_uninvoice_trans_single(CUTOVER_DATE, end_date, merge, true)
+            .await?;
+
+        if old_res.is_none() && new_res.is_none() {
+            return Ok(None);
+        }
+
+        let mut combined_list = Vec::new();
+        let mut card_info = None;
+        let mut config = None;
+
+        if let Some(mut old_val) = old_res {
+            if let Some(ci) = old_val.get("cardInfo").cloned() {
+                card_info = Some(ci);
+            }
+            if let Some(cfg) = old_val.get("config").cloned() {
+                config = Some(cfg);
+            }
+            if let Some(arr) = old_val.get_mut("list").and_then(|v| v.as_array_mut()) {
+                combined_list.append(arr);
+            }
+        }
+        if let Some(mut new_val) = new_res {
+            if card_info.is_none() {
+                if let Some(ci) = new_val.get("cardInfo").cloned() {
+                    card_info = Some(ci);
+                }
+            }
+            if config.is_none() {
+                if let Some(cfg) = new_val.get("config").cloned() {
+                    config = Some(cfg);
+                }
+            }
+            if let Some(arr) = new_val.get_mut("list").and_then(|v| v.as_array_mut()) {
+                combined_list.append(arr);
+            }
+        }
+
+        let mut merged = serde_json::json!({
+            "code": 0,
+            "list": combined_list,
+        });
+        if let Some(ci) = card_info {
+            merged["cardInfo"] = ci;
+        }
+        if let Some(cfg) = config {
+            merged["config"] = cfg;
+        }
+        Ok(Some(merged))
     }
 
     /// Calls `POST /corpgas/webjsp/invoicev2Action_queryTransList.json` (`merge=1`) followed by

@@ -617,14 +617,14 @@ animation: pulseBorder 1.5s infinite;
 <div class="kpi-meta">发卡网点：东丽空港经四路站1292</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-label">最近已开具数电专票 (2026-09-25)</div>
-<div class="kpi-val" style="color:var(--status-green);">¥15,552.16</div>
-<div class="kpi-meta">2025-03 (¥2,023.07) + 2026-08 (¥13,529.09)</div>
+<div class="kpi-label" id="kpi-recent-inv-label">最近已开具数电专票</div>
+<div class="kpi-val" id="kpi-recent-inv-val" style="color:var(--status-green);">¥16,030.79</div>
+<div class="kpi-meta" id="kpi-recent-inv-meta">申请批次: 20261031BA3946274004 (2026-10-31)</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-label">9月待开专票消费 (2026-09-01~09-25)</div>
-<div class="kpi-val" style="color:var(--brand-blue);">¥12,267.56</div>
-<div class="kpi-meta">待开票交易 19 笔 · 随时可一键开具</div>
+<div class="kpi-label" id="kpi-unbilled-label">当前待开专票消费总额</div>
+<div class="kpi-val" id="kpi-unbilled-val" style="color:var(--brand-blue);">¥9,975.18</div>
+<div class="kpi-meta" id="kpi-unbilled-meta">待开票交易 15 笔 · 随时可一键开具</div>
 </div>
 </section>
 <section id="view-login" class="surface">
@@ -1232,11 +1232,6 @@ let isLoggedIn = __INITIAL_LOGGED_IN__;
 let activeTab = isLoggedIn ? 'invoice' : 'login';
 let smsCountdownTimer = null;
 let companyName = '天津祺富机械加工有限公司';
-const recentVerifiedInvoices = [
-{ invoice_date: '2026-09-25 15:30:12', invoice_no: '26127000000455106554', period: '2026年8月', amount: '13529.09', download_path: 'https://invoice.sinopec.com/1sBBkrsTTu8Ps' },
-{ invoice_date: '2026-09-25 14:15:08', invoice_no: '26127000000455104760', period: '2025年3月', amount: '2023.07', download_path: 'https://invoice.sinopec.com/10MeZii83BFvF' },
-{ invoice_date: '2026-08-31 16:32:00', invoice_no: '26127000000418852365', period: '2026年8月(上期)', amount: '13678.48', download_path: 'https://invoice.sinopec.com/03pOPF6KZp7R7' }
-];
 // Card Remarks Persistence
 const defaultCardRemarks = {
 '1000111200006330729': '企业主卡 · 孟祥山',
@@ -1709,7 +1704,7 @@ const rows = candidates.map((it, idx) =>
 document.getElementById('inv-table-wrap').innerHTML =
 '<table>' +
 '<thead><tr><th style="width:50px;text-align:center;">序号</th><th>消费时间</th><th>加油网点</th><th>品名</th><th class="num">升数 (L)</th><th class="num">单价 (元)</th><th class="num">交易金额 (CNY)</th></tr></thead>' +
-'<tbody>' + (rows || '<tr><td colspan="7" style="text-align:center;color:#64748b;">该时段无未开发票明细</td></tr>') + '</tbody>' +
+'<tbody>' + (rows || '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:24px;">该时段无未开发票明细（如该月消费已提交开票申请，流水已转入“历史发票档案”展示）</td></tr>') + '</tbody>' +
 '</table>';
 } catch (err) {
 setNotice('查询未开票流水异常：' + err.message, 'error');
@@ -1750,27 +1745,47 @@ if (btn) { btn.disabled = false; btn.textContent = '一键开具该时段数电�
 async function loadIssuedInvoices() {
 const btn = event?.target?.tagName === 'BUTTON' ? event.target : null;
 if (btn) { btn.disabled = true; btn.textContent = '刷新中...'; }
-let list = recentVerifiedInvoices;
+let list = [];
 try {
 const res = await fetch('/api/v1/invoices');
 const data = await res.json();
-if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
+if (data.ok && Array.isArray(data.data)) {
 list = data.data;
 }
 } catch (e) {}
-const rows = list.map((inv, idx) =>
-'<tr>' +
+
+// Update top KPI if we have invoices
+if (list.length > 0) {
+const latest = list[0];
+const rVal = document.getElementById('kpi-recent-inv-val');
+const rMeta = document.getElementById('kpi-recent-inv-meta');
+const rLabel = document.getElementById('kpi-recent-inv-label');
+if (rVal) rVal.textContent = '¥' + latest.amount;
+if (rLabel) rLabel.textContent = '最近开具数电专票 (' + latest.invoice_date + ')';
+if (rMeta) {
+if (latest.invoice_no) {
+rMeta.textContent = '数电发票号码: ' + latest.invoice_no;
+} else {
+rMeta.textContent = '申请批次: ' + latest.id + ' (税控排队中)';
+}
+}
+}
+
+const rows = list.length === 0
+? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">暂无已开具发票记录</td></tr>'
+: list.map((inv, idx) =>
+'<tr' + (inv.invoice_no ? '' : ' style="background:#fefce8;"') + '>' +
 '<td style="text-align:center;font-weight:600;color:var(--text-muted);">' + (idx + 1) + '</td>' +
 '<td class="tabular">' + inv.invoice_date + '</td>' +
-'<td><code>' + (inv.invoice_no || inv.id) + '</code></td>' +
-'<td>' + (inv.period || '已开具数电专票') + '</td>' +
+'<td><code>' + (inv.invoice_no || inv.id) + '</code>' + (inv.invoice_no ? '' : ' <span class="chip" style="color:#b45309;background:#fef3c7;">税控排队中</span>') + '</td>' +
+'<td>' + (inv.period || (inv.invoice_no ? '已开具数电专票' : '已向中石化税控系统提交开票')) + '</td>' +
 '<td class="num"><strong style="color:var(--status-green);">¥' + inv.amount + '</strong></td>' +
-'<td class="num"><a class="btn btn-primary" style="padding:4px 12px;font-size:12px;" href="' + (inv.download_path || '#') + '" target="_blank" rel="noreferrer">打开/下载电子发票</a></td>' +
+'<td class="num">' + (inv.download_path ? ('<a class="btn btn-primary" style="padding:4px 12px;font-size:12px;" href="' + inv.download_path + '" target="_blank" rel="noreferrer">下载发票</a>') : '<span style="color:var(--text-muted);font-size:12px;">税控开票处理中</span>') + '</td>' +
 '</tr>'
 ).join('');
 document.getElementById('history-table-wrap').innerHTML =
 '<table>' +
-'<thead><tr><th style="width:50px;text-align:center;">序号</th><th>开票时间</th><th>数电发票号码 (20位)</th><th>对应期间/说明</th><th class="num">发票金额 (CNY)</th><th class="num">操作</th></tr></thead>' +
+'<thead><tr><th style="width:50px;text-align:center;">序号</th><th>申请/开票时间</th><th>数电发票号码 / 批次流水号</th><th>状态说明</th><th class="num">发票金额 (CNY)</th><th class="num">操作</th></tr></thead>' +
 '<tbody>' + rows + '</tbody>' +
 '</table>';
 if (btn) { btn.disabled = false; btn.textContent = '刷新发票档案'; }

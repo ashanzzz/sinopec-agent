@@ -166,18 +166,24 @@ impl SinopecService {
     }
 
     pub async fn account_info(&self) -> AppResult<AccountInfo> {
-        if let Ok(Some(probe)) = self.http.probe_corporate_balance().await {
+        if let Some(probe) = self.http.probe_corporate_balance().await? {
             return Ok(probe.account_info);
         }
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../tests/fixtures/account.json"))
-                .unwrap_or_default();
-        let (acc, _) = SinopecParser::parse_balance_response(&fixture)?;
-        Ok(acc)
+        if self.config.demo_mode {
+            let fixture: serde_json::Value =
+                serde_json::from_str(include_str!("../../../tests/fixtures/account.json"))
+                    .unwrap_or_default();
+            let (acc, _) = SinopecParser::parse_balance_response(&fixture)?;
+            return Ok(acc);
+        }
+        Err(AppError::new(
+            ErrorCode::UpstreamError,
+            "无法从中石化网厅获取真实账户信息，会话可能已过期",
+        ))
     }
 
     pub async fn list_cards(&self) -> AppResult<Vec<Card>> {
-        if let Ok(Some(probe)) = self.http.probe_corporate_balance().await {
+        if let Some(probe) = self.http.probe_corporate_balance().await? {
             let mut cards = vec![probe.primary_card];
             if let Ok(Some(extra)) = self.http.query_card_list().await {
                 for c in extra {
@@ -191,12 +197,17 @@ impl SinopecService {
             }
             return Ok(cards);
         }
-
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../tests/fixtures/cards.json"))
-                .unwrap_or_default();
-        let (_, primary) = SinopecParser::parse_balance_response(&fixture)?;
-        Ok(vec![primary])
+        if self.config.demo_mode {
+            let fixture: serde_json::Value =
+                serde_json::from_str(include_str!("../../../tests/fixtures/cards.json"))
+                    .unwrap_or_default();
+            let (_, primary) = SinopecParser::parse_balance_response(&fixture)?;
+            return Ok(vec![primary]);
+        }
+        Err(AppError::new(
+            ErrorCode::UpstreamError,
+            "无法从中石化网厅获取加油卡列表，会话可能已过期",
+        ))
     }
 
     pub async fn detect_invoice_capabilities(&self) -> AppResult<InvoiceCapabilities> {
@@ -223,9 +234,10 @@ impl SinopecService {
                     .to_string(),
             });
         }
+        let today = Utc::now().format("%Y-%m-%d").to_string();
         if let Ok(Some(live_json)) = self
             .http
-            .query_live_uninvoice_trans("2026-08-01", "2026-09-25", "1")
+            .query_live_uninvoice_trans("2026-01-01", &today, "1")
             .await
         {
             if let Some(ci) = live_json.get("cardInfo") {
@@ -243,12 +255,18 @@ impl SinopecService {
                 });
             }
         }
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../tests/fixtures/invoice_quota.json"))
-                .unwrap_or_default();
-        Ok(SinopecParser::parse_quota_response(
-            &fixture,
-            status.account_mode,
+        if self.config.demo_mode {
+            let fixture: serde_json::Value =
+                serde_json::from_str(include_str!("../../../tests/fixtures/invoice_quota.json"))
+                    .unwrap_or_default();
+            return Ok(SinopecParser::parse_quota_response(
+                &fixture,
+                status.account_mode,
+            ));
+        }
+        Err(AppError::new(
+            ErrorCode::UpstreamError,
+            "无法从中石化网厅获取可用开票额度",
         ))
     }
 
@@ -264,30 +282,51 @@ impl SinopecService {
             .query_live_uninvoice_trans(start_date, end_date, "0")
             .await
         {
+            if let Some(msg) = live_json.get("message").and_then(|v| v.as_str()) {
+                let code = live_json.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
+                if code != 0 {
+                    return Err(AppError::new(
+                        ErrorCode::UpstreamError,
+                        format!("中石化网厅提示: {}", msg),
+                    ));
+                }
+            }
+
             if live_json.get("list").is_some() {
-                return SinopecParser::parse_transactions_response(&live_json);
+                let mut list = SinopecParser::parse_transactions_response(&live_json)?;
+                if let Some(cid) = card_id {
+                    if !cid.trim().is_empty() {
+                        list.retain(|tx| tx.card_id == cid || tx.card_id.ends_with(cid));
+                    }
+                }
+                return Ok(list);
             }
         }
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../tests/fixtures/transactions.json"))
-                .unwrap_or_default();
-        let all = SinopecParser::parse_transactions_response(&fixture)?;
 
-        let filtered = all
-            .into_iter()
-            .filter(|tx| {
-                let tx_date = tx.transaction_time.split(' ').next().unwrap_or("");
-                let in_range = tx_date >= start_date && tx_date <= end_date;
-                let card_ok = match card_id {
-                    Some(cid) if !cid.trim().is_empty() => {
-                        tx.card_id == cid || tx.card_id.ends_with(cid)
-                    }
-                    _ => true,
-                };
-                in_range && card_ok
-            })
-            .collect();
-        Ok(filtered)
+        if self.config.demo_mode {
+            let fixture: serde_json::Value =
+                serde_json::from_str(include_str!("../../../tests/fixtures/transactions.json"))
+                    .unwrap_or_default();
+            let all = SinopecParser::parse_transactions_response(&fixture)?;
+
+            let filtered = all
+                .into_iter()
+                .filter(|tx| {
+                    let tx_date = tx.transaction_time.split(' ').next().unwrap_or("");
+                    let in_range = tx_date >= start_date && tx_date <= end_date;
+                    let card_ok = match card_id {
+                        Some(cid) if !cid.trim().is_empty() => {
+                            tx.card_id == cid || tx.card_id.ends_with(cid)
+                        }
+                        _ => true,
+                    };
+                    in_range && card_ok
+                })
+                .collect();
+            return Ok(filtered);
+        }
+
+        Ok(vec![])
     }
 
     pub async fn invoice_candidates(
@@ -621,7 +660,7 @@ impl SinopecService {
                             buyer_name: item
                                 .get("title")
                                 .and_then(|v| v.as_str())
-                                .unwrap_or("示例机械加工有限公司")
+                                .unwrap_or("天津祺富机械加工有限公司")
                                 .to_string(),
                             amount: format_fen_yuan(fen),
                             amount_fen: fen,
@@ -638,17 +677,20 @@ impl SinopecService {
                 return Ok(out);
             }
         }
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../tests/fixtures/invoice_list.json"))
-                .unwrap_or_default();
-        let mut list = SinopecParser::parse_invoice_list_response(&fixture);
-        for item in &mut list {
-            if let Ok(Some(dl)) = self.downloads.get_by_remote_id(&item.id).await {
-                item.download_path = Some(dl.path);
-                item.file_status = "DOWNLOADED".to_string();
+        if self.config.demo_mode {
+            let fixture: serde_json::Value =
+                serde_json::from_str(include_str!("../../../tests/fixtures/invoice_list.json"))
+                    .unwrap_or_default();
+            let mut list = SinopecParser::parse_invoice_list_response(&fixture);
+            for item in &mut list {
+                if let Ok(Some(dl)) = self.downloads.get_by_remote_id(&item.id).await {
+                    item.download_path = Some(dl.path);
+                    item.file_status = "DOWNLOADED".to_string();
+                }
             }
+            return Ok(list);
         }
-        Ok(list)
+        Ok(vec![])
     }
 
     pub async fn invoice_status(&self, id: &str) -> AppResult<InvoiceRecord> {
