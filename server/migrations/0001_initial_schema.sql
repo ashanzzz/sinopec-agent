@@ -106,3 +106,37 @@ CREATE TABLE IF NOT EXISTS local_invoices (
     synced_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS local_allocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    master_card_no TEXT NOT NULL,
+    card_no TEXT NOT NULL,
+    card_alias TEXT,
+    holder_name TEXT,
+    ope_time TEXT NOT NULL,
+    amount_fen INTEGER NOT NULL,
+    amount_yuan TEXT NOT NULL,
+    node_name TEXT NOT NULL,
+    status_text TEXT NOT NULL,
+    synced_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_allocations_unique ON local_allocations(card_no, ope_time, amount_fen);
+
+CREATE TABLE IF NOT EXISTS local_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_no TEXT NOT NULL,
+    card_alias TEXT,
+    holder_name TEXT,
+    ope_time TEXT NOT NULL,
+    amount_fen INTEGER NOT NULL,
+    amount_yuan TEXT NOT NULL,
+    balance_yuan TEXT NOT NULL,
+    oil_name TEXT,
+    price_yuan TEXT,
+    volume_litre TEXT,
+    node_tag TEXT NOT NULL,
+    tra_name TEXT NOT NULL,
+    synced_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_unique ON local_transactions(card_no, ope_time, amount_fen, balance_yuan);
+
+

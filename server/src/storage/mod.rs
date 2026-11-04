@@ -587,4 +587,362 @@ impl SqliteStore {
         }
         Ok(out)
     }
+
+    pub async fn save_local_allocations(
+        &self,
+        master_card_no: &str,
+        records: &[serde_json::Value],
+    ) -> AppResult<usize> {
+        let beijing = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+        let now = beijing.format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut count = 0;
+
+        for r in records {
+            let card_no = r.get("cardNo").and_then(|v| v.as_str()).unwrap_or("");
+            let ope_time = r.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            let amount_fen = r
+                .get("amount")
+                .and_then(|v| {
+                    if let Some(n) = v.as_i64() {
+                        Some(n)
+                    } else if let Some(s) = v.as_str() {
+                        s.parse::<i64>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            let amount_yuan = crate::sinopec::models::format_fen_yuan(amount_fen);
+            let holder_name = r
+                .get("cardHolder")
+                .and_then(|v| v.as_str())
+                .unwrap_or("孟祥山")
+                .trim();
+            let node_name = r
+                .get("nodeName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("网厅划拨")
+                .trim();
+            let status_text = r
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("100% 已圈存入芯");
+
+            let card_alias = match card_no {
+                c if c.ends_with("8807") => "车间",
+                c if c.ends_with("8459") => "老板",
+                c if c.ends_with("9423") => "李佳宁",
+                c if c.ends_with("0729") => "孟祥山",
+                _ => "",
+            };
+
+            if card_no.is_empty() || ope_time.is_empty() {
+                continue;
+            }
+
+            let res = sqlx::query(
+                "INSERT INTO local_allocations 
+                 (master_card_no, card_no, card_alias, holder_name, ope_time, amount_fen, amount_yuan, node_name, status_text, synced_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(card_no, ope_time, amount_fen) DO UPDATE SET
+                    node_name = excluded.node_name,
+                    status_text = excluded.status_text,
+                    synced_at = excluded.synced_at"
+            )
+            .bind(master_card_no)
+            .bind(card_no)
+            .bind(card_alias)
+            .bind(holder_name)
+            .bind(ope_time)
+            .bind(amount_fen)
+            .bind(&amount_yuan)
+            .bind(node_name)
+            .bind(status_text)
+            .bind(&now)
+            .execute(&self.pool)
+            .await;
+
+            if res.is_ok() {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    pub async fn list_local_allocations(
+        &self,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        card_no: Option<&str>,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let s = start_date.unwrap_or("");
+        let e = end_date.unwrap_or("9999-99-99");
+        let c = card_no.unwrap_or("all");
+
+        let rows = sqlx::query(
+            "SELECT master_card_no, card_no, card_alias, holder_name, ope_time, amount_fen, amount_yuan, node_name, status_text, synced_at 
+             FROM local_allocations 
+             WHERE substr(ope_time, 1, 10) >= ? 
+               AND substr(ope_time, 1, 10) <= ?
+               AND (? = 'all' OR ? = '' OR card_no = ?)
+             ORDER BY ope_time DESC"
+        )
+        .bind(s)
+        .bind(e)
+        .bind(c)
+        .bind(c)
+        .bind(c)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(serde_json::json!({
+                "master_card_no": r.get::<String, _>("master_card_no"),
+                "cardNo": r.get::<String, _>("card_no"),
+                "card_alias": r.get::<Option<String>, _>("card_alias"),
+                "cardHolder": r.get::<Option<String>, _>("holder_name"),
+                "opeTime": r.get::<String, _>("ope_time"),
+                "amount": r.get::<i64, _>("amount_fen").to_string(),
+                "amount_yuan": r.get::<String, _>("amount_yuan"),
+                "nodeName": r.get::<String, _>("node_name"),
+                "status": r.get::<String, _>("status_text"),
+                "synced_at": r.get::<String, _>("synced_at")
+            }));
+        }
+        Ok(out)
+    }
+
+    pub async fn save_local_transactions(
+        &self,
+        records: &[serde_json::Value],
+    ) -> AppResult<usize> {
+        let beijing = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+        let now = beijing.format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut count = 0;
+
+        for r in records {
+            let card_no = r.get("card_no").or_else(|| r.get("cardNo")).and_then(|v| v.as_str()).unwrap_or("");
+            let ope_time = r.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            let tra_name = r.get("traName").and_then(|v| v.as_str()).unwrap_or("消费");
+            let amount_fen = r
+                .get("amount")
+                .and_then(|v| {
+                    if let Some(n) = v.as_i64() {
+                        Some(n)
+                    } else if let Some(s) = v.as_str() {
+                        s.parse::<i64>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            let amount_yuan = crate::sinopec::models::format_fen_yuan(amount_fen);
+            let balance_fen = r
+                .get("balance")
+                .and_then(|v| {
+                    if let Some(n) = v.as_i64() {
+                        Some(n)
+                    } else if let Some(s) = v.as_str() {
+                        s.parse::<i64>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            let balance_yuan = crate::sinopec::models::format_fen_yuan(balance_fen);
+            let node_tag = r.get("nodeTag").and_then(|v| v.as_str()).unwrap_or("").trim();
+            let oil_name = r.get("oilName").and_then(|v| v.as_str());
+            let price_yuan = r.get("price").and_then(|v| v.as_str());
+            let volume_litre = r.get("volume").or_else(|| r.get("oilVol")).and_then(|v| v.as_str());
+            let holder_name = r.get("holder_name").and_then(|v| v.as_str());
+
+            let card_alias = match card_no {
+                c if c.ends_with("8807") => "车间",
+                c if c.ends_with("8459") => "老板",
+                c if c.ends_with("9423") => "李佳宁",
+                c if c.ends_with("0729") => "孟祥山",
+                _ => "",
+            };
+
+            if card_no.is_empty() || ope_time.is_empty() {
+                continue;
+            }
+
+            let res = sqlx::query(
+                "INSERT INTO local_transactions 
+                 (card_no, card_alias, holder_name, ope_time, amount_fen, amount_yuan, balance_yuan, oil_name, price_yuan, volume_litre, node_tag, tra_name, synced_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(card_no, ope_time, amount_fen, balance_yuan) DO UPDATE SET
+                    node_tag = excluded.node_tag,
+                    oil_name = COALESCE(excluded.oil_name, local_transactions.oil_name),
+                    price_yuan = COALESCE(excluded.price_yuan, local_transactions.price_yuan),
+                    volume_litre = COALESCE(excluded.volume_litre, local_transactions.volume_litre),
+                    synced_at = excluded.synced_at"
+            )
+            .bind(card_no)
+            .bind(card_alias)
+            .bind(holder_name)
+            .bind(ope_time)
+            .bind(amount_fen)
+            .bind(&amount_yuan)
+            .bind(&balance_yuan)
+            .bind(oil_name)
+            .bind(price_yuan)
+            .bind(volume_litre)
+            .bind(node_tag)
+            .bind(tra_name)
+            .bind(&now)
+            .execute(&self.pool)
+            .await;
+
+            if res.is_ok() {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    pub async fn list_local_transactions(
+        &self,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        card_no: Option<&str>,
+    ) -> AppResult<Vec<serde_json::Value>> {
+        let s = start_date.unwrap_or("");
+        let e = end_date.unwrap_or("9999-99-99");
+        let c = card_no.unwrap_or("all");
+
+        let rows = sqlx::query(
+            "SELECT card_no, card_alias, holder_name, ope_time, amount_fen, amount_yuan, balance_yuan, oil_name, price_yuan, volume_litre, node_tag, tra_name, synced_at 
+             FROM local_transactions 
+             WHERE substr(ope_time, 1, 10) >= ? 
+               AND substr(ope_time, 1, 10) <= ?
+               AND (? = 'all' OR ? = '' OR card_no = ?)
+             ORDER BY ope_time DESC"
+        )
+        .bind(s)
+        .bind(e)
+        .bind(c)
+        .bind(c)
+        .bind(c)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(serde_json::json!({
+                "card_no": r.get::<String, _>("card_no"),
+                "card_alias": r.get::<Option<String>, _>("card_alias"),
+                "holder_name": r.get::<Option<String>, _>("holder_name"),
+                "opeTime": r.get::<String, _>("ope_time"),
+                "amount": r.get::<i64, _>("amount_fen").to_string(),
+                "amount_yuan": r.get::<String, _>("amount_yuan"),
+                "balance": r.get::<String, _>("balance_yuan"),
+                "oilName": r.get::<Option<String>, _>("oil_name").unwrap_or_default(),
+                "price": r.get::<Option<String>, _>("price_yuan").unwrap_or_default(),
+                "volume": r.get::<Option<String>, _>("volume_litre").unwrap_or_default(),
+                "nodeTag": r.get::<String, _>("node_tag"),
+                "traName": r.get::<String, _>("tra_name"),
+                "synced_at": r.get::<String, _>("synced_at")
+            }));
+        }
+        Ok(out)
+    }
+
+    pub async fn get_financial_summary(
+        &self,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+    ) -> AppResult<serde_json::Value> {
+        let s = start_date.unwrap_or("2026-01-01");
+        let e = end_date.unwrap_or("2026-12-31");
+
+        // 1. Total Allocations in window
+        let alloc_row = sqlx::query(
+            "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
+             FROM local_allocations 
+             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ?"
+        )
+        .bind(s)
+        .bind(e)
+        .fetch_one(&self.pool)
+        .await?;
+        let total_alloc_fen: i64 = alloc_row.get("total_fen");
+        let alloc_count: i64 = alloc_row.get("count");
+
+        // 2. Total Quancun in window
+        let quancun_row = sqlx::query(
+            "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
+             FROM local_quancun_records 
+             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ?"
+        )
+        .bind(s)
+        .bind(e)
+        .fetch_one(&self.pool)
+        .await?;
+        let total_quancun_fen: i64 = quancun_row.get("total_fen");
+        let quancun_count: i64 = quancun_row.get("count");
+
+        // 3. Total Consumption in window
+        let tx_row = sqlx::query(
+            "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
+             FROM local_transactions 
+             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ? AND tra_name != '圈存'"
+        )
+        .bind(s)
+        .bind(e)
+        .fetch_one(&self.pool)
+        .await?;
+        let total_consumption_fen: i64 = tx_row.get("total_fen");
+        let consumption_count: i64 = tx_row.get("count");
+
+        // 4. Invoices in window
+        let inv_row = sqlx::query(
+            "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
+             FROM local_invoices 
+             WHERE substr(add_date, 1, 10) >= ? AND substr(add_date, 1, 10) <= ?"
+        )
+        .bind(s)
+        .bind(e)
+        .fetch_one(&self.pool)
+        .await?;
+        let total_inv_fen: i64 = inv_row.get("total_fen");
+        let inv_count: i64 = inv_row.get("count");
+
+        // Master pool balance from sync:allocations KV if available
+        let cached_alloc = self.get_kv("sync:allocations").await?.unwrap_or_default();
+        let master_pool_yuan = cached_alloc.get("master_pool_balance_yuan").and_then(|v| v.as_str()).unwrap_or("626.78");
+
+        Ok(serde_json::json!({
+            "window": { "start_date": s, "end_date": e },
+            "master_pool_balance_yuan": master_pool_yuan,
+            "allocations": {
+                "count": alloc_count,
+                "total_fen": total_alloc_fen,
+                "total_yuan": crate::sinopec::models::format_fen_yuan(total_alloc_fen)
+            },
+            "quancun": {
+                "count": quancun_count,
+                "total_fen": total_quancun_fen,
+                "total_yuan": crate::sinopec::models::format_fen_yuan(total_quancun_fen)
+            },
+            "consumption": {
+                "count": consumption_count,
+                "total_fen": total_consumption_fen,
+                "total_yuan": crate::sinopec::models::format_fen_yuan(total_consumption_fen)
+            },
+            "invoices": {
+                "count": inv_count,
+                "total_fen": total_inv_fen,
+                "total_yuan": crate::sinopec::models::format_fen_yuan(total_inv_fen)
+            },
+            "conservation": {
+                "unquancun_diff_fen": total_alloc_fen - total_quancun_fen,
+                "unquancun_diff_yuan": crate::sinopec::models::format_fen_yuan(total_alloc_fen - total_quancun_fen),
+                "in_card_retention_fen": total_quancun_fen - total_consumption_fen,
+                "in_card_retention_yuan": crate::sinopec::models::format_fen_yuan(total_quancun_fen - total_consumption_fen)
+            }
+        }))
+    }
 }

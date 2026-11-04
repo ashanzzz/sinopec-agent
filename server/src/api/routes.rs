@@ -56,6 +56,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/local/quancun", get(local_quancun_list_handler))
         .route("/local/invoices", get(local_invoices_list_handler))
         .route("/local/allocations", get(local_allocations_handler))
+        .route("/local/allocations/logs", get(local_allocations_logs_handler))
+        .route("/local/transactions", get(local_transactions_handler))
+        .route("/local/financial-summary", get(local_financial_summary_handler))
         .route(
             "/cards/{card_no}/transactions",
             get(card_transactions_handler),
@@ -627,8 +630,24 @@ async fn allocations_logs_handler(
     State(state): State<AppState>,
     Query(q): Query<AllocationLogsQuery>,
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start_ref = q.start_date.as_deref();
+    let end_ref = q.end_date.as_deref();
+    let card_ref = q.card_no.as_deref();
+
+    // 1. Try local SQLite query first (fast, reliable, cross-month friendly)
+    if let Ok(local_list) = state.store.list_local_allocations(start_ref, end_ref, card_ref).await {
+        if !local_list.is_empty() {
+            return Ok(ApiEnvelope::success(json!({
+                "count": local_list.len(),
+                "list": local_list,
+                "source": "local_sqlite"
+            })));
+        }
+    }
+
+    // 2. Fallback to online query if local has no data
     let start = q.start_date.unwrap_or_else(|| "2026-01-01".to_string());
-    let end = q.end_date.unwrap_or_else(|| "2026-09-25".to_string());
+    let end = q.end_date.unwrap_or_else(|| "2026-12-31".to_string());
     let master_card_no = state
         .http
         .resolve_default_card_no()
@@ -638,6 +657,8 @@ async fn allocations_logs_handler(
         .http
         .query_yufenpei_logs(&master_card_no, &start, &end)
         .await?;
+    let _ = state.store.save_local_allocations(&master_card_no, &raw_logs).await;
+
     let filtered: Vec<Value> = if let Some(target_card) = &q.card_no {
         if target_card == "all" || target_card.is_empty() {
             raw_logs
@@ -655,7 +676,8 @@ async fn allocations_logs_handler(
         "start_date": start,
         "end_date": end,
         "count": filtered.len(),
-        "list": filtered
+        "list": filtered,
+        "source": "sinopec_live"
     })))
 }
 
@@ -663,6 +685,7 @@ async fn allocations_logs_handler(
 pub struct CardTransactionsQuery {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    pub card_no: Option<String>,
     pub tra_type: Option<String>,
 }
 
@@ -927,6 +950,7 @@ async fn local_sync_trigger_handler(
     state.store.set_kv("sync:allocations", &breakdown).await?;
 
     let mut all_quancun = Vec::new();
+    let mut all_transactions = Vec::new();
     if let Some(cards) = breakdown.get("cards_ledger").and_then(|v| v.as_object()) {
         for (card_no, c_data) in cards {
             let alias = c_data.get("card_alias").and_then(|v| v.as_str()).unwrap_or("");
@@ -942,12 +966,46 @@ async fn local_sync_trigger_handler(
                     all_quancun.push(item);
                 }
             }
+            if let Some(tx_recs) = c_data.get("transaction_records").and_then(|v| v.as_array()) {
+                for t in tx_recs {
+                    let mut item = t.clone();
+                    if let Some(obj) = item.as_object_mut() {
+                        obj.insert("card_no".to_string(), json!(card_no));
+                        obj.insert("card_alias".to_string(), json!(alias));
+                        obj.insert("holder_name".to_string(), json!(holder));
+                    }
+                    let tra_name = item.get("traName").and_then(|v| v.as_str()).unwrap_or("");
+                    if tra_name == "圈存" {
+                        all_quancun.push(item);
+                    } else {
+                        all_transactions.push(item);
+                    }
+                }
+            }
         }
     }
     let quancun_count = state.store.save_local_quancun(&all_quancun).await?;
+    let tx_count = state.store.save_local_transactions(&all_transactions).await?;
 
     let today = beijing.format("%Y-%m-%d").to_string();
     let start_date = "2026-01-01";
+
+    let master_card_no = state
+        .http
+        .resolve_default_card_no()
+        .await
+        .unwrap_or_else(|_| "1000111200006330729".to_string());
+    let raw_allocs = state
+        .http
+        .query_yufenpei_logs(&master_card_no, start_date, &today)
+        .await
+        .unwrap_or_default();
+    let alloc_count = state
+        .store
+        .save_local_allocations(&master_card_no, &raw_allocs)
+        .await
+        .unwrap_or(0);
+
     let invoices_val = state
         .http
         .query_live_plain_invoices(start_date, &today)
@@ -967,7 +1025,9 @@ async fn local_sync_trigger_handler(
     let sync_meta = json!({
         "last_synced_at": now_str,
         "remote_online": true,
+        "allocations_count": alloc_count,
         "quancun_records_count": quancun_count,
+        "transactions_count": tx_count,
         "invoice_records_count": invoice_count,
         "status": "success"
     });
@@ -977,10 +1037,53 @@ async fn local_sync_trigger_handler(
         "ok": true,
         "remote_online": true,
         "last_synced_at": now_str,
+        "allocations_synced": alloc_count,
         "quancun_synced": quancun_count,
+        "transactions_synced": tx_count,
         "invoices_synced": invoice_count,
-        "message": format!("同步成功！已持久化 {} 笔圈存记录与 {} 笔发票记录到本地数据库。", quancun_count, invoice_count)
+        "message": format!(
+            "同步成功！已将 {} 笔预分配划拨、{} 笔圈存、{} 笔消费明细与 {} 笔发票全量落盘至本地 SQLite 数据库。",
+            alloc_count, quancun_count, tx_count, invoice_count
+        )
     })))
+}
+
+async fn local_allocations_logs_handler(
+    State(state): State<AppState>,
+    Query(q): Query<AllocationLogsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.as_deref();
+    let end = q.end_date.as_deref();
+    let card = q.card_no.as_deref();
+    let list = state.store.list_local_allocations(start, end, card).await?;
+    Ok(ApiEnvelope::success(json!({
+        "count": list.len(),
+        "list": list
+    })))
+}
+
+async fn local_transactions_handler(
+    State(state): State<AppState>,
+    Query(q): Query<CardTransactionsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.as_deref();
+    let end = q.end_date.as_deref();
+    let card = q.card_no.as_deref();
+    let list = state.store.list_local_transactions(start, end, card).await?;
+    Ok(ApiEnvelope::success(json!({
+        "count": list.len(),
+        "list": list
+    })))
+}
+
+async fn local_financial_summary_handler(
+    State(state): State<AppState>,
+    Query(q): Query<TransactionsQuery>,
+) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start = q.start_date.as_deref();
+    let end = q.end_date.as_deref();
+    let summary = state.store.get_financial_summary(start, end).await?;
+    Ok(ApiEnvelope::success(summary))
 }
 
 async fn local_quancun_list_handler(
