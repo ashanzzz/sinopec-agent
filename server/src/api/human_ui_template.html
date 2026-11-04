@@ -596,27 +596,27 @@ animation: pulseBorder 1.5s infinite;
 </div>
 <div id="main-app-content">
 <nav class="nav-bar" aria-label="业务功能导航">
+<button type="button" class="nav-item active" id="nav-recharge" onclick="selectTab('recharge')">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+<span>1. 资金大盘与各卡台账 (本地核对)</span>
+</button>
+<button type="button" class="nav-item" id="nav-history" onclick="selectTab('history')">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+<span>2. 历史发票台账 &amp; 下载 (本地核对)</span>
+</button>
+<button type="button" class="nav-item" id="nav-invoice" onclick="selectTab('invoice')">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+<span>3. 在线查未开票 &amp; 一键开票</span>
+</button>
 <button type="button" class="nav-item" id="nav-login" onclick="selectTab('login')">
-<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-<span id="nav-login-text">1. 登录认证门禁 (短信验证)</span>
-</button>
-<button type="button" class="nav-item disabled" id="nav-invoice" onclick="selectTab('invoice')">
-<svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-<span>2. 按时间段查未开票 &amp; 一键开票</span>
-</button>
-<button type="button" class="nav-item disabled" id="nav-history" onclick="selectTab('history')">
-<svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-<span>3. 已开发票档案 &amp; 官方下载</span>
-</button>
-<button type="button" class="nav-item disabled" id="nav-recharge" onclick="selectTab('recharge')">
-<svg class="lock-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-<span>4. 资金总览：充值、分配、圈存与各卡明细</span>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+<span id="nav-login-text">4. 中石化网厅连接 &amp; 数据同步</span>
 </button>
 </nav>
 <div id="notice-banner" class="notice-bar">
-<span id="notice-text">【未登录门禁保护中】当前未登录，其他所有业务操作已强制锁定禁用。请先完成下方短信验证码登录解锁工作台。</span>
+<span id="notice-text">系统已就绪。所有本地资金台账、圈存明细与发票档案可随时核对；在线开票或全量同步时按需连接中石化网厅。</span>
 </div>
-<section id="kpi-strip" class="kpi-strip" style="display:none;">
+<section id="kpi-strip" class="kpi-strip" style="display:grid;">
 <div class="kpi-card">
 <div class="kpi-label">当前单位账户与发票属性</div>
 <div class="kpi-val" style="font-size:16px;">数电增值税专用发票</div>
@@ -638,7 +638,7 @@ animation: pulseBorder 1.5s infinite;
 <div class="kpi-meta" id="kpi-unbilled-meta">待开票交易 15 笔 · 随时可一键开具</div>
 </div>
 </section>
-<section id="view-login" class="surface">
+<section id="view-login" class="surface" style="display:none;">
 <!-- 3-Node Architecture Diagnosis -->
 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:12px;background:var(--bg-subtle);border:1px solid var(--border-subtle);border-radius:8px;padding:14px;margin-bottom:20px;">
 <div style="background:#ffffff;border:1px solid var(--border-subtle);border-radius:6px;padding:12px;">
@@ -887,7 +887,7 @@ style="padding:10px 14px;font-size:16px;font-weight:700;border:2px solid var(--b
 </div>
 <div id="history-table-wrap"></div>
 </section>
-<section id="view-recharge" class="surface" style="display:none;">
+<section id="view-recharge" class="surface">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
 <div>
 <h2 class="surface-title">资金总览：充值、分配、圈存与各卡明细透视</h2>
@@ -1248,7 +1248,7 @@ onkeydown="if(event.key==='Enter') saveRemarkFromModal()"
 </div>
 <script>
 let isLoggedIn = __INITIAL_LOGGED_IN__;
-let activeTab = isLoggedIn ? 'invoice' : 'login';
+let activeTab = 'recharge';
 let smsCountdownTimer = null;
 let companyName = '天津祺富机械加工有限公司';
 // Card Remarks Persistence
@@ -1399,38 +1399,25 @@ box.appendChild(div);
 box.scrollTop = box.scrollHeight;
 }
 function syncAuthUi() {
-const bClass = document.body.classList;
 const kpi = document.getElementById('kpi-strip');
+if (kpi) kpi.style.display = 'grid';
 const navLoginText = document.getElementById('nav-login-text');
 const authHub = document.getElementById('auth-hub-online');
 const authAlert = document.getElementById('auth-expired-alert');
 const formWrap = document.getElementById('auth-form-wrap');
 const formTitle = document.getElementById('auth-form-title');
 if (isLoggedIn) {
-bClass.remove('not-logged-in');
-if (kpi) kpi.style.display = 'grid';
-['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
-const el = document.getElementById(id);
-if (el) el.classList.remove('disabled');
-});
-if (navLoginText) navLoginText.innerHTML = '<span style="color:#16a34a;font-weight:700;">1. 登录认证门禁 (已实名在线)</span>';
+if (navLoginText) navLoginText.innerHTML = '<span style="color:#16a34a;font-weight:700;">4. 中石化网厅连接 &amp; 数据同步 (已在线)</span>';
 if (authHub) authHub.style.display = 'block';
 if (authAlert) authAlert.style.display = 'none';
 if (formWrap) formWrap.style.display = 'none';
 if (formTitle) formTitle.textContent = '中国石化单位网厅 · 身份核验表单 (已折叠)';
 } else {
-bClass.add('not-logged-in');
-if (kpi) kpi.style.display = 'none';
-['nav-invoice', 'nav-history', 'nav-recharge'].forEach(id => {
-const el = document.getElementById(id);
-if (el) el.classList.add('disabled');
-});
-if (navLoginText) navLoginText.innerHTML = '<span style="color:#dc2626;font-weight:700;">1. 登录门禁 (会话失效)</span>';
+if (navLoginText) navLoginText.innerHTML = '<span style="color:#b45309;font-weight:700;">4. 中石化网厅连接 &amp; 数据同步 (待认证)</span>';
 if (authHub) authHub.style.display = 'none';
 if (authAlert) authAlert.style.display = 'block';
 if (formWrap) formWrap.style.display = 'grid';
 if (formTitle) formTitle.textContent = '中国石化单位网厅 · 手机验证码登录';
-if (activeTab !== 'login') selectTab('login');
 }
 }
 function toggleAuthForm() {
@@ -1456,12 +1443,8 @@ input.scrollIntoView({ behavior: 'smooth' });
 }
 }
 function selectTab(tab) {
-if (!isLoggedIn && tab !== 'login') {
-setNotice('中石化网厅会话未处于已登录状态，其他业务操作已被安全锁定。请先在登录门禁完成短信验证码核验！', 'error');
-return;
-}
 activeTab = tab;
-['login', 'invoice', 'history', 'recharge'].forEach(t => {
+['recharge', 'history', 'invoice', 'login'].forEach(t => {
 const v = document.getElementById('view-' + t);
 const b = document.getElementById('nav-' + t);
 if (v) v.style.display = (t === tab) ? 'block' : 'none';
@@ -1469,6 +1452,9 @@ if (b) b.classList.toggle('active', t === tab);
 });
 if (tab === 'recharge' && !cachedAllocationData) {
 loadAllocations();
+}
+if (tab === 'history') {
+loadIssuedInvoices();
 }
 }
 async function pollSystemStatus() {
@@ -1795,11 +1781,22 @@ async function loadIssuedInvoices() {
 const btn = event?.target?.tagName === 'BUTTON' ? event.target : null;
 if (btn) { btn.disabled = true; btn.textContent = '刷新中...'; }
 let list = [];
+const token = localStorage.getItem(AUTH_TOKEN_KEY);
 try {
-const res = await fetch('/api/v1/invoices');
-const data = await res.json();
-if (data.ok && Array.isArray(data.data)) {
+let res = await fetch('/api/v1/local/invoices', {
+headers: token ? { 'X-Sinopec-Auth-Token': token } : {}
+});
+let data = await res.json();
+if (data.ok && data.data && Array.isArray(data.data.list)) {
+list = data.data.list;
+} else if (data.ok && Array.isArray(data.data)) {
 list = data.data;
+} else {
+res = await fetch('/api/v1/invoices', {
+headers: token ? { 'X-Sinopec-Auth-Token': token } : {}
+});
+data = await res.json();
+if (data.ok && Array.isArray(data.data)) list = data.data;
 }
 } catch (e) {}
 
@@ -1809,13 +1806,15 @@ const latest = list[0];
 const rVal = document.getElementById('kpi-recent-inv-val');
 const rMeta = document.getElementById('kpi-recent-inv-meta');
 const rLabel = document.getElementById('kpi-recent-inv-label');
-if (rVal) rVal.textContent = '¥' + latest.amount;
-if (rLabel) rLabel.textContent = '最近开具数电专票 (' + latest.invoice_date + ')';
+const lAmt = latest.amount || latest.amount_yuan || '0.00';
+const lDate = latest.invoice_date || (latest.add_date ? (latest.add_date.slice(0,4) + '-' + latest.add_date.slice(4,6) + '-' + latest.add_date.slice(6,8)) : '-');
+if (rVal) rVal.textContent = '¥' + lAmt;
+if (rLabel) rLabel.textContent = '最近开具数电专票 (' + lDate + ')';
 if (rMeta) {
 if (latest.invoice_no) {
 rMeta.textContent = '数电发票号码: ' + latest.invoice_no;
 } else {
-rMeta.textContent = '申请批次: ' + latest.id + ' (税控排队中)';
+rMeta.textContent = '申请批次: ' + (latest.id || '') + ' (税控排队中)';
 }
 }
 }
@@ -1823,30 +1822,34 @@ rMeta.textContent = '申请批次: ' + latest.id + ' (税控排队中)';
 const rows = list.length === 0
 ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">暂无已开具发票记录</td></tr>'
 : list.map((inv, idx) => {
+const amt = inv.amount || inv.amount_yuan || '0.00';
+const invDate = inv.invoice_date || (inv.add_date ? (inv.add_date.slice(0,4) + '-' + inv.add_date.slice(4,6) + '-' + inv.add_date.slice(6,8) + ' ' + inv.add_date.slice(8,10) + ':' + inv.add_date.slice(10,12)) : '-');
+const invUrl = inv.download_path || inv.url;
 let statusBadge = '';
 let actionBtn = '';
-if (inv.status === 'ISSUED') {
+if (inv.status === 'ISSUED' || inv.status === 2 || inv.status === '2' || (inv.invoice_no && invUrl)) {
 statusBadge = '<span class="badge" style="background:#dcfce7;color:#166534;font-weight:700;padding:3px 8px;border-radius:4px;">开票成功</span>' +
 (inv.invoice_no ? (' <span style="font-size:11px;color:var(--text-muted);font-family:monospace;">(' + inv.invoice_no + ')</span>') : '');
-actionBtn = (inv.download_path ? ('<a class="btn btn-primary" style="padding:4px 10px;font-size:12px;margin-right:6px;" href="' + inv.download_path + '" target="_blank" rel="noreferrer">下载发票</a>') : '') +
+actionBtn = (invUrl ? ('<a class="btn btn-primary" style="padding:4px 10px;font-size:12px;margin-right:6px;" href="' + invUrl + '" target="_blank" rel="noreferrer">下载发票</a>') : '') +
 '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
-} else if (inv.status === 'FAILED') {
+} else if (inv.status === 'FAILED' || inv.status === 3 || inv.status === '3') {
 statusBadge = '<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;padding:3px 8px;border-radius:4px;">开票失败</span>' +
 ' <span style="font-size:11px;color:#b91c1c;">(税控未生成)</span>';
 actionBtn = '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;color:#991b1b;border-color:#fca5a5;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
-} else if (inv.status === 'PENDING') {
+} else if (inv.status === 'PENDING' || inv.status === 1 || inv.status === '1') {
 statusBadge = '<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700;padding:3px 8px;border-radius:4px;">开票中</span>';
-actionBtn = '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
+actionBtn = (invUrl ? ('<a class="btn btn-primary" style="padding:4px 10px;font-size:12px;margin-right:6px;" href="' + invUrl + '" target="_blank" rel="noreferrer">下载发票</a>') : '') +
+'<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
 } else {
 statusBadge = '<span class="badge" style="background:#f1f5f9;color:#475569;font-weight:700;padding:3px 8px;border-radius:4px;">' + (inv.status || '已归档') + '</span>';
 actionBtn = '<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="showInvoiceDetailDialog(' + idx + ')">查看详情</button>';
 }
 
 return '<tr>' +
-'<td style="text-align:left;font-weight:600;color:var(--text-primary);">' + (inv.buyer_name || '天津祺富机械加工有限公司') + '</td>' +
-'<td class="num"><strong style="color:var(--status-green);font-size:14px;">' + inv.amount + '</strong></td>' +
-'<td>' + (inv.invoice_type || '增值税发票') + '</td>' +
-'<td class="tabular" style="font-size:12px;">' + inv.invoice_date + '</td>' +
+'<td style="text-align:left;font-weight:600;color:var(--text-primary);">' + (inv.buyer_name || inv.title || '天津祺富机械加工有限公司') + '</td>' +
+'<td class="num"><strong style="color:var(--status-green);font-size:14px;">¥' + amt + '</strong></td>' +
+'<td>' + (inv.invoice_type || '数电增值税专用发票') + '</td>' +
+'<td class="tabular" style="font-size:12px;">' + invDate + '</td>' +
 '<td>' + statusBadge + '</td>' +
 '<td class="num">' + actionBtn + '</td>' +
 '</tr>';
@@ -2498,10 +2501,19 @@ const btn = document.getElementById('btn-refresh-alloc');
 if (btn) { btn.disabled = true; btn.textContent = '正在刷新资金大盘...'; }
 setNotice('正在实时拉取中国石化主副卡档案、预分配流水及圈存状态...', 'info');
 try {
-const res = await fetch('/api/v1/allocations');
-const data = await res.json();
-if (!data.ok) {
-setNotice('拉取资金总览失败：' + (data.error?.message || '会话异常'), 'error');
+const token = localStorage.getItem(AUTH_TOKEN_KEY);
+let res = await fetch('/api/v1/local/allocations', {
+headers: token ? { 'X-Sinopec-Auth-Token': token } : {}
+});
+let data = await res.json();
+if (!data.ok || !data.data) {
+res = await fetch('/api/v1/allocations', {
+headers: token ? { 'X-Sinopec-Auth-Token': token } : {}
+});
+data = await res.json();
+}
+if (!data.ok || !data.data) {
+setNotice('加载资金总盘提示：' + (data.error?.message || '本地暂无缓存，可连接网厅后同步'), 'info');
 return;
 }
 cachedAllocationData = data.data;
@@ -2726,7 +2738,9 @@ async function triggerLocalSync(btn) {
             loadAllocations();
             loadIssuedInvoices();
         } else {
-            setNotice('同步提示：' + ((data.error && data.error.message) || '网厅会话超时'), 'warning');
+            setNotice('同步提示：' + ((data.error && data.error.message) || '网厅会话超时，需要短信验证码。正在切换至登录页...'), 'warning');
+            selectTab('login');
+            focusSmsForm();
         }
     } catch (e) {
         setNotice('同步请求失败：' + e.message, 'error');
@@ -2739,8 +2753,10 @@ async function triggerLocalSync(btn) {
 checkAdminAuth();
 syncAuthUi();
 pollSystemStatus();
+refreshLocalSyncStatus();
 loadIssuedInvoices();
 loadAllocations();
+selectTab('recharge');
 setInterval(pollSystemStatus, 30000);
 </script>
 </body>

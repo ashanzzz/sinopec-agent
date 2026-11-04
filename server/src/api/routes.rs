@@ -601,8 +601,19 @@ async fn invoice_create_live_handler(
 }
 
 async fn allocations_handler(State(state): State<AppState>) -> AppResult<Json<ApiEnvelope<Value>>> {
-    let breakdown = state.http.query_allocation_breakdown().await?;
-    Ok(ApiEnvelope::success(breakdown))
+    match state.http.query_allocation_breakdown().await {
+        Ok(breakdown) => {
+            let _ = state.store.set_kv("sync:allocations", &breakdown).await;
+            Ok(ApiEnvelope::success(breakdown))
+        }
+        Err(_) => {
+            if let Ok(Some(cached)) = state.store.get_kv("sync:allocations").await {
+                Ok(ApiEnvelope::success(cached))
+            } else {
+                Err(AppError::new(ErrorCode::SinopecUnavailable, "无法连接中石化网厅且本地尚无资金大盘缓存"))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
