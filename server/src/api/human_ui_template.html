@@ -728,20 +728,20 @@ animation: pulseBorder 1.5s infinite;
 </div>
 </div>
 <!-- State B: Session Expired / Logged Out Alert Banner -->
-<div id="auth-expired-alert" style="display:none;background:#fef2f2;border:2px solid #f87171;border-radius:10px;padding:20px;margin-bottom:20px;box-shadow:0 4px 6px -1px rgba(220,38,38,0.1);">
+<div id="auth-expired-alert" style="display:none;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
 <div style="display:flex;align-items:flex-start;gap:12px;">
 <div style="flex-shrink:0;">
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
 </div>
 <div style="flex:1;">
-<div style="font-size:16px;font-weight:800;color:#991b1b;margin-bottom:4px;">
-当前中国石化网厅会话未登录或已超时失效 (HTTP 390)
+<div style="font-size:15px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">
+当前中石化网厅处于未连接或会话已超时状态（不影响本地数据核对）
 </div>
-<div style="font-size:13px;color:#b91c1c;line-height:1.6;margin-bottom:10px;">
-为保障企业资金与发票安全，其他业务操作已自动锁定保护。请在下方<strong>【步骤 1】</strong>核对信息并点击获取短信，在<strong>【步骤 2】</strong>输入 6 位验证码后即可自动恢复全功能解锁！
+<div style="font-size:13px;color:#1e40af;line-height:1.6;margin-bottom:8px;">
+系统本地 SQLite 已完整持久化所有历史资金大盘、副卡划拨、加能站圈存及发票档案，您可随时在各 Tab 自由核对。只有在需要<strong>“在线开新票”</strong>或<strong>“拉取最新同步数据”</strong>时，才需要在下方获取短信验证码连接网厅。
 </div>
-<button type="button" class="btn btn-red" style="font-size:13px;padding:6px 16px;" onclick="focusSmsForm()">
-<span>填写验证码重新登录</span>
+<button type="button" class="btn btn-outline" style="font-size:12px;padding:5px 14px;" onclick="focusSmsForm()">
+<span>展开中石化网厅短信登录表单</span>
 </button>
 </div>
 </div>
@@ -749,9 +749,9 @@ animation: pulseBorder 1.5s infinite;
 <!-- Step 1 & Step 2 Form -->
 <div id="auth-form-wrap" class="auth-gate-grid">
 <div>
-<h2 class="surface-title" id="auth-form-title">中国石化单位网厅 · 手机验证码登录</h2>
+<h2 class="surface-title" id="auth-form-title">中国石化单位网厅 · 连接与同步</h2>
 <p class="surface-desc">
-安全门禁设计：只有当中国石化服务端会话处于已登录状态时，方可操作开发票与对账功能。
+按需登录体系：仅在需要执行中石化在线开票或拉取最新流水时连接网厅；本地查账核对完全自主免登录。
 </p>
 <div class="step-box">
 <div class="step-header">

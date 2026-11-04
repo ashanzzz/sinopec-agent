@@ -42,14 +42,7 @@ pub async fn render_human_action_page(
         .replace("__HOLDER_NAME__", &holder_name)
         .replace("__PHONE__", &phone)
         .replace("__INITIAL_LOGGED_IN__", initial_logged_in)
-        .replace(
-            "__BODY_CLASS__",
-            if auth_status.verified {
-                ""
-            } else {
-                "not-logged-in"
-            },
-        )
+        .replace("__BODY_CLASS__", "")
         .replace("__ACTION_ID__", &action.id);
 
     Ok(Html(html))
