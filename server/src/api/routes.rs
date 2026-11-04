@@ -712,8 +712,56 @@ async fn card_transactions_handler(
     Path(card_no): Path<String>,
     Query(q): Query<CardTransactionsQuery>,
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
+    let start_ref = q.start_date.as_deref();
+    let end_ref = q.end_date.as_deref();
+    let tra_type_str = q.tra_type.as_deref().unwrap_or("消费");
+
+    // 1. Try local SQLite query first (fast, reliable, offline-safe)
+    if tra_type_str == "圈存" {
+        if let Ok(local_list) = state
+            .store
+            .list_local_quancun(start_ref, end_ref, Some(&card_no))
+            .await
+        {
+            if !local_list.is_empty() {
+                let mut total_fen: i64 = 0;
+                for it in &local_list {
+                    total_fen += crate::sinopec::parser::SinopecParser::parse_fen(it.get("amount"));
+                }
+                return Ok(ApiEnvelope::success(json!({
+                    "card_no": card_no,
+                    "count": local_list.len(),
+                    "total_amount": crate::sinopec::models::format_fen_yuan(total_fen),
+                    "list": local_list,
+                    "source": "local_sqlite"
+                })));
+            }
+        }
+    } else {
+        if let Ok(local_list) = state
+            .store
+            .list_local_transactions(start_ref, end_ref, Some(&card_no))
+            .await
+        {
+            if !local_list.is_empty() {
+                let mut total_fen: i64 = 0;
+                for it in &local_list {
+                    total_fen += crate::sinopec::parser::SinopecParser::parse_fen(it.get("amount"));
+                }
+                return Ok(ApiEnvelope::success(json!({
+                    "card_no": card_no,
+                    "count": local_list.len(),
+                    "total_amount": crate::sinopec::models::format_fen_yuan(total_fen),
+                    "list": local_list,
+                    "source": "local_sqlite"
+                })));
+            }
+        }
+    }
+
+    // 2. Fallback to online query if local has no data
     let start = q.start_date.unwrap_or_else(|| "2026-01-01".to_string());
-    let end = q.end_date.unwrap_or_else(|| "2026-09-25".to_string());
+    let end = q.end_date.unwrap_or_else(|| "2026-12-31".to_string());
     let raw_logs = if card_no == "all" {
         let master = state
             .http
