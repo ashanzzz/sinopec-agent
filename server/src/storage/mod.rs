@@ -390,11 +390,23 @@ impl SqliteStore {
             let card_alias = r.get("card_alias").and_then(|v| v.as_str());
             let holder_name = r.get("holder_name").and_then(|v| v.as_str());
             let ope_time = r.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
-            let amount_fen = r.get("amount").and_then(|v| v.as_str()).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+            let amount_fen = r
+                .get("amount")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
             let amount_yuan = crate::sinopec::models::format_fen_yuan(amount_fen);
-            let balance_fen = r.get("balance").and_then(|v| v.as_str()).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+            let balance_fen = r
+                .get("balance")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
             let balance_yuan = crate::sinopec::models::format_fen_yuan(balance_fen);
-            let node_tag = r.get("nodeTag").and_then(|v| v.as_str()).unwrap_or("").trim();
+            let node_tag = r
+                .get("nodeTag")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
             let tra_name = r.get("traName").and_then(|v| v.as_str()).unwrap_or("圈存");
             let oil_name = r.get("oilName").and_then(|v| v.as_str());
 
@@ -498,13 +510,34 @@ impl SqliteStore {
             if invoice_no.is_empty() {
                 continue;
             }
-            let invoice_number = r.get("invoiceNumber").or_else(|| r.get("invoice_number")).and_then(|v| v.as_str());
-            let einv_req_key = r.get("einvReqKey").or_else(|| r.get("einv_req_key")).and_then(|v| v.as_str());
-            let title = r.get("title").and_then(|v| v.as_str()).unwrap_or("天津祺富机械加工有限公司");
-            let amount_fen = r.get("money_fen").or_else(|| r.get("amount_fen")).and_then(|v| v.as_i64()).unwrap_or(0);
-            let amount_yuan = r.get("money").or_else(|| r.get("amount")).and_then(|v| v.as_str()).unwrap_or("0.00");
+            let invoice_number = r
+                .get("invoiceNumber")
+                .or_else(|| r.get("invoice_number"))
+                .and_then(|v| v.as_str());
+            let einv_req_key = r
+                .get("einvReqKey")
+                .or_else(|| r.get("einv_req_key"))
+                .and_then(|v| v.as_str());
+            let title = r
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("天津祺富机械加工有限公司");
+            let amount_fen = r
+                .get("money_fen")
+                .or_else(|| r.get("amount_fen"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let amount_yuan = r
+                .get("money")
+                .or_else(|| r.get("amount"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("0.00");
             let fplx = r.get("fplx").and_then(|v| v.as_str()).unwrap_or("02");
-            let add_date = r.get("addDate").or_else(|| r.get("add_date")).and_then(|v| v.as_str()).unwrap_or("");
+            let add_date = r
+                .get("addDate")
+                .or_else(|| r.get("add_date"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let status = r.get("status").and_then(|v| v.as_i64()).unwrap_or(1);
             let url = r.get("url").and_then(|v| v.as_str());
             let start_date = r.get("start_date").and_then(|v| v.as_str());
@@ -713,16 +746,17 @@ impl SqliteStore {
         Ok(out)
     }
 
-    pub async fn save_local_transactions(
-        &self,
-        records: &[serde_json::Value],
-    ) -> AppResult<usize> {
+    pub async fn save_local_transactions(&self, records: &[serde_json::Value]) -> AppResult<usize> {
         let beijing = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
         let now = beijing.format("%Y-%m-%d %H:%M:%S").to_string();
         let mut count = 0;
 
         for r in records {
-            let card_no = r.get("card_no").or_else(|| r.get("cardNo")).and_then(|v| v.as_str()).unwrap_or("");
+            let card_no = r
+                .get("card_no")
+                .or_else(|| r.get("cardNo"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let ope_time = r.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
             let tra_name = r.get("traName").and_then(|v| v.as_str()).unwrap_or("消费");
             let amount_fen = r
@@ -751,10 +785,17 @@ impl SqliteStore {
                 })
                 .unwrap_or(0);
             let balance_yuan = crate::sinopec::models::format_fen_yuan(balance_fen);
-            let node_tag = r.get("nodeTag").and_then(|v| v.as_str()).unwrap_or("").trim();
+            let node_tag = r
+                .get("nodeTag")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
             let oil_name = r.get("oilName").and_then(|v| v.as_str());
             let price_yuan = r.get("price").and_then(|v| v.as_str());
-            let volume_litre = r.get("volume").or_else(|| r.get("oilVol")).and_then(|v| v.as_str());
+            let volume_litre = r
+                .get("volume")
+                .or_else(|| r.get("oilVol"))
+                .and_then(|v| v.as_str());
             let holder_name = r.get("holder_name").and_then(|v| v.as_str());
 
             let card_alias = match card_no {
@@ -862,7 +903,7 @@ impl SqliteStore {
         let alloc_row = sqlx::query(
             "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
              FROM local_allocations 
-             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ?"
+             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ?",
         )
         .bind(s)
         .bind(e)
@@ -875,7 +916,7 @@ impl SqliteStore {
         let quancun_row = sqlx::query(
             "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
              FROM local_quancun_records 
-             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ?"
+             WHERE substr(ope_time, 1, 10) >= ? AND substr(ope_time, 1, 10) <= ?",
         )
         .bind(s)
         .bind(e)
@@ -901,7 +942,7 @@ impl SqliteStore {
         let inv_row = sqlx::query(
             "SELECT COALESCE(SUM(amount_fen), 0) as total_fen, COUNT(*) as count 
              FROM local_invoices 
-             WHERE substr(add_date, 1, 10) >= ? AND substr(add_date, 1, 10) <= ?"
+             WHERE substr(add_date, 1, 10) >= ? AND substr(add_date, 1, 10) <= ?",
         )
         .bind(s)
         .bind(e)
@@ -912,7 +953,10 @@ impl SqliteStore {
 
         // Master pool balance from sync:allocations KV if available
         let cached_alloc = self.get_kv("sync:allocations").await?.unwrap_or_default();
-        let master_pool_yuan = cached_alloc.get("master_pool_balance_yuan").and_then(|v| v.as_str()).unwrap_or("626.78");
+        let master_pool_yuan = cached_alloc
+            .get("master_pool_balance_yuan")
+            .and_then(|v| v.as_str())
+            .unwrap_or("626.78");
 
         Ok(serde_json::json!({
             "window": { "start_date": s, "end_date": e },

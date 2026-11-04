@@ -531,13 +531,19 @@ impl SinopecHttpTransport {
             .send()
             .await?;
         if resp.status().as_u16() == 390 {
-            tracing::warn!(endpoint = endpoint, "Sinopec returned HTTP 390 session expired");
+            tracing::warn!(
+                endpoint = endpoint,
+                "Sinopec returned HTTP 390 session expired"
+            );
             return Ok(None);
         }
         let bytes = resp.bytes().await?;
         let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
         if cow.contains("default_corp.html") || cow.contains("数据错误") {
-            tracing::warn!(endpoint = endpoint, "Sinopec returned login redirect or DataError page");
+            tracing::warn!(
+                endpoint = endpoint,
+                "Sinopec returned login redirect or DataError page"
+            );
             return Ok(None);
         }
         let parsed: serde_json::Value = serde_json::from_str(&cow).map_err(|e| {
@@ -547,7 +553,10 @@ impl SinopecHttpTransport {
 
         if let Some(code) = parsed.get("code").and_then(|v| v.as_i64()) {
             if code != 0 {
-                let msg = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("未知网厅提示");
+                let msg = parsed
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("未知网厅提示");
                 tracing::warn!(
                     endpoint = endpoint,
                     code = code,
@@ -576,13 +585,21 @@ impl SinopecHttpTransport {
 
         const CUTOVER_DATE: &str = "2026-10-20";
         if end_date < CUTOVER_DATE {
-            tracing::info!(start_date, end_date, "Routing uninvoiced query strictly to Old System (< 2026-10-20)");
+            tracing::info!(
+                start_date,
+                end_date,
+                "Routing uninvoiced query strictly to Old System (< 2026-10-20)"
+            );
             return self
                 .query_live_uninvoice_trans_single(start_date, end_date, merge, false)
                 .await;
         }
         if start_date >= CUTOVER_DATE {
-            tracing::info!(start_date, end_date, "Routing uninvoiced query strictly to New System (>= 2026-10-20)");
+            tracing::info!(
+                start_date,
+                end_date,
+                "Routing uninvoiced query strictly to New System (>= 2026-10-20)"
+            );
             return self
                 .query_live_uninvoice_trans_single(start_date, end_date, merge, true)
                 .await;
@@ -616,7 +633,10 @@ impl SinopecHttpTransport {
         if let Some(mut old_val) = old_res {
             if let Some(code) = old_val.get("code").and_then(|v| v.as_i64()) {
                 if code != 0 {
-                    let msg = old_val.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                    let msg = old_val
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
                     errors.push(format!("旧版开票({start_date}~2026-10-19): {msg}"));
                 }
             }
@@ -637,7 +657,10 @@ impl SinopecHttpTransport {
         if let Some(mut new_val) = new_res {
             if let Some(code) = new_val.get("code").and_then(|v| v.as_i64()) {
                 if code != 0 {
-                    let msg = new_val.get("message").and_then(|v| v.as_str()).unwrap_or("");
+                    let msg = new_val
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
                     errors.push(format!("新版开票(2026-10-20~{end_date}): {msg}"));
                 }
             }
@@ -694,7 +717,10 @@ impl SinopecHttpTransport {
         is_new: bool,
     ) -> AppResult<serde_json::Value> {
         let (system_name, referer_page) = if is_new {
-            ("新版开票系统 (2026-10-20及以后)", "invoicev2/createInvoiceNew.jsp")
+            (
+                "新版开票系统 (2026-10-20及以后)",
+                "invoicev2/createInvoiceNew.jsp",
+            )
         } else {
             ("旧版开票系统 (2026-10-20前)", "invoicev2/createInvoice.jsp")
         };
@@ -1136,7 +1162,10 @@ impl SinopecHttpTransport {
             .header("Cookie", self.cookie_header().await)
             .header(
                 "Referer",
-                format!("{}/corpgas/webjsp/invoicev2/queryInvoiceBill.jsp", self.base_url),
+                format!(
+                    "{}/corpgas/webjsp/invoicev2/queryInvoiceBill.jsp",
+                    self.base_url
+                ),
             )
             .header("X-Requested-With", "XMLHttpRequest")
             .form(&params)
@@ -1152,11 +1181,19 @@ impl SinopecHttpTransport {
             tracing::warn!("queryInvoiceBill returned login redirect or DataError page");
             return Ok(None);
         }
-        let parsed: serde_json::Value = serde_json::from_str(&b_cow)
-            .map_err(|e| AppError::new(ErrorCode::ApiContractChanged, format!("Invalid invoice bill JSON: {e}")))?;
+        let parsed: serde_json::Value = serde_json::from_str(&b_cow).map_err(|e| {
+            AppError::new(
+                ErrorCode::ApiContractChanged,
+                format!("Invalid invoice bill JSON: {e}"),
+            )
+        })?;
         tracing::info!(
             code = parsed.get("code").and_then(|v| v.as_i64()).unwrap_or(0),
-            detail_count = parsed.get("detailList").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0),
+            detail_count = parsed
+                .get("detailList")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0),
             "Received digital invoice bill archives from Sinopec"
         );
         Ok(Some(parsed))
@@ -1204,11 +1241,18 @@ impl SinopecHttpTransport {
             .await?;
         let bytes = resp.bytes().await?;
         let (cow, _, _) = encoding_rs::GB18030.decode(&bytes);
-        let parsed: serde_json::Value = serde_json::from_str(&cow)
-            .map_err(|e| AppError::new(ErrorCode::ApiContractChanged, format!("Invalid recreate invoice JSON: {e}")))?;
+        let parsed: serde_json::Value = serde_json::from_str(&cow).map_err(|e| {
+            AppError::new(
+                ErrorCode::ApiContractChanged,
+                format!("Invalid recreate invoice JSON: {e}"),
+            )
+        })?;
         if let Some(msg) = parsed.get("message").and_then(|v| v.as_str()) {
             if !msg.is_empty() {
-                return Err(AppError::new(ErrorCode::InvalidRequest, format!("中国石化补开发票失败: {msg}")));
+                return Err(AppError::new(
+                    ErrorCode::InvalidRequest,
+                    format!("中国石化补开发票失败: {msg}"),
+                ));
             }
         }
         Ok(parsed)
@@ -1321,7 +1365,10 @@ impl SinopecHttpTransport {
             .header("Cookie", self.cookie_header().await)
             .header(
                 "Referer",
-                format!("{}/corpgas/webjsp/allocate/preallocation.jsp", self.base_url),
+                format!(
+                    "{}/corpgas/webjsp/allocate/preallocation.jsp",
+                    self.base_url
+                ),
             )
             .header("X-Requested-With", "XMLHttpRequest")
             .send()
@@ -1356,9 +1403,17 @@ impl SinopecHttpTransport {
             while cur <= d2 {
                 let (y, m) = (cur.year(), cur.month());
                 let last_day = if m == 12 {
-                    chrono::NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap().pred_opt().unwrap().day()
+                    chrono::NaiveDate::from_ymd_opt(y + 1, 1, 1)
+                        .unwrap()
+                        .pred_opt()
+                        .unwrap()
+                        .day()
                 } else {
-                    chrono::NaiveDate::from_ymd_opt(y, m + 1, 1).unwrap().pred_opt().unwrap().day()
+                    chrono::NaiveDate::from_ymd_opt(y, m + 1, 1)
+                        .unwrap()
+                        .pred_opt()
+                        .unwrap()
+                        .day()
                 };
                 let m_end = chrono::NaiveDate::from_ymd_opt(y, m, last_day).unwrap();
                 let actual_end = std::cmp::min(m_end, d2);
@@ -1493,7 +1548,8 @@ impl SinopecHttpTransport {
             .await
             .unwrap_or_else(|_| "1000111200006330729".to_string());
 
-        let beijing = chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+        let beijing =
+            chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
         let today = beijing.format("%Y-%m-%d").to_string();
 
         // 1. Live probe corporate balance (Master card + pool)
@@ -1533,8 +1589,7 @@ impl SinopecHttpTransport {
                 .and_then(|v| v.as_str())
                 .unwrap_or("激活卡")
                 .trim();
-            let c_bal_fen =
-                crate::sinopec::parser::SinopecParser::parse_fen(vc.get("cardBalance"));
+            let c_bal_fen = crate::sinopec::parser::SinopecParser::parse_fen(vc.get("cardBalance"));
             let pre_bal_fen =
                 crate::sinopec::parser::SinopecParser::parse_fen(vc.get("preBalance"));
 

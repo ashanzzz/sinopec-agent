@@ -56,9 +56,15 @@ pub fn build_router(state: AppState) -> Router {
         .route("/local/quancun", get(local_quancun_list_handler))
         .route("/local/invoices", get(local_invoices_list_handler))
         .route("/local/allocations", get(local_allocations_handler))
-        .route("/local/allocations/logs", get(local_allocations_logs_handler))
+        .route(
+            "/local/allocations/logs",
+            get(local_allocations_logs_handler),
+        )
         .route("/local/transactions", get(local_transactions_handler))
-        .route("/local/financial-summary", get(local_financial_summary_handler))
+        .route(
+            "/local/financial-summary",
+            get(local_financial_summary_handler),
+        )
         .route(
             "/cards/{card_no}/transactions",
             get(card_transactions_handler),
@@ -582,7 +588,9 @@ async fn invoice_create_live_handler(
     let (spanning, total_trans, total_money) = if results.len() == 1 {
         let r0 = &results[0];
         (
-            r0.get("spanning_cutover").and_then(|v| v.as_bool()).unwrap_or(false),
+            r0.get("spanning_cutover")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
             r0.get("total_trans_count")
                 .and_then(|v| v.as_i64())
                 .or_else(|| r0.get("trans_count").and_then(|v| v.as_i64())),
@@ -613,7 +621,10 @@ async fn allocations_handler(State(state): State<AppState>) -> AppResult<Json<Ap
             if let Ok(Some(cached)) = state.store.get_kv("sync:allocations").await {
                 Ok(ApiEnvelope::success(cached))
             } else {
-                Err(AppError::new(ErrorCode::SinopecUnavailable, "无法连接中石化网厅且本地尚无资金大盘缓存"))
+                Err(AppError::new(
+                    ErrorCode::SinopecUnavailable,
+                    "无法连接中石化网厅且本地尚无资金大盘缓存",
+                ))
             }
         }
     }
@@ -635,7 +646,11 @@ async fn allocations_logs_handler(
     let card_ref = q.card_no.as_deref();
 
     // 1. Try local SQLite query first (fast, reliable, cross-month friendly)
-    if let Ok(local_list) = state.store.list_local_allocations(start_ref, end_ref, card_ref).await {
+    if let Ok(local_list) = state
+        .store
+        .list_local_allocations(start_ref, end_ref, card_ref)
+        .await
+    {
         if !local_list.is_empty() {
             return Ok(ApiEnvelope::success(json!({
                 "count": local_list.len(),
@@ -657,7 +672,10 @@ async fn allocations_logs_handler(
         .http
         .query_yufenpei_logs(&master_card_no, &start, &end)
         .await?;
-    let _ = state.store.save_local_allocations(&master_card_no, &raw_logs).await;
+    let _ = state
+        .store
+        .save_local_allocations(&master_card_no, &raw_logs)
+        .await;
 
     let filtered: Vec<Value> = if let Some(target_card) = &q.card_no {
         if target_card == "all" || target_card.is_empty() {
@@ -907,14 +925,12 @@ async fn admin_logout_handler(
 async fn local_sync_status_handler(
     State(state): State<AppState>,
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
-    let meta = state
-        .store
-        .get_kv("sync:meta")
-        .await?
-        .unwrap_or_else(|| json!({
+    let meta = state.store.get_kv("sync:meta").await?.unwrap_or_else(|| {
+        json!({
             "last_synced_at": "暂未同步",
             "status": "pending"
-        }));
+        })
+    });
     let auth = state.service.auth_status().await.ok();
     let remote_online = auth.map(|a| a.verified).unwrap_or(false);
 
@@ -929,7 +945,8 @@ async fn local_sync_trigger_handler(
     State(state): State<AppState>,
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
     let auth = state.service.auth_status().await?;
-    let beijing = chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+    let beijing =
+        chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
     let now_str = beijing.format("%Y-%m-%d %H:%M:%S").to_string();
 
     if !auth.verified {
@@ -953,7 +970,10 @@ async fn local_sync_trigger_handler(
     let mut all_transactions = Vec::new();
     if let Some(cards) = breakdown.get("cards_ledger").and_then(|v| v.as_object()) {
         for (card_no, c_data) in cards {
-            let alias = c_data.get("card_alias").and_then(|v| v.as_str()).unwrap_or("");
+            let alias = c_data
+                .get("card_alias")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let holder = c_data.get("holder").and_then(|v| v.as_str()).unwrap_or("");
             if let Some(q_recs) = c_data.get("quancun_records").and_then(|v| v.as_array()) {
                 for q in q_recs {
@@ -985,7 +1005,10 @@ async fn local_sync_trigger_handler(
         }
     }
     let quancun_count = state.store.save_local_quancun(&all_quancun).await?;
-    let tx_count = state.store.save_local_transactions(&all_transactions).await?;
+    let tx_count = state
+        .store
+        .save_local_transactions(&all_transactions)
+        .await?;
 
     let today = beijing.format("%Y-%m-%d").to_string();
     let start_date = "2026-01-01";
@@ -1069,7 +1092,10 @@ async fn local_transactions_handler(
     let start = q.start_date.as_deref();
     let end = q.end_date.as_deref();
     let card = q.card_no.as_deref();
-    let list = state.store.list_local_transactions(start, end, card).await?;
+    let list = state
+        .store
+        .list_local_transactions(start, end, card)
+        .await?;
     Ok(ApiEnvelope::success(json!({
         "count": list.len(),
         "list": list

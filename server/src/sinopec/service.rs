@@ -681,7 +681,11 @@ impl SinopecService {
                 let out = arr
                     .iter()
                     .filter(|item| {
-                        let name = item.get("customName").or_else(|| item.get("title")).and_then(|v| v.as_str()).unwrap_or("");
+                        let name = item
+                            .get("customName")
+                            .or_else(|| item.get("title"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
                         name != "合计"
                     })
                     .map(|item| {
@@ -783,7 +787,9 @@ impl SinopecService {
 
                         InvoiceRecord {
                             id: if seq.is_empty() {
-                                inv_no.clone().unwrap_or_else(|| format!("inv_{}", Uuid::new_v4().simple()))
+                                inv_no
+                                    .clone()
+                                    .unwrap_or_else(|| format!("inv_{}", Uuid::new_v4().simple()))
                             } else {
                                 seq
                             },

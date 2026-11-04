@@ -220,8 +220,14 @@ async fn test_cutover_date_validation_and_spanning_invariants() {
         .http
         .create_live_electronic_invoice("2026-10-31", "2026-10-01", "test@example.com")
         .await;
-    assert!(inv_create_res.is_err(), "Inverted dates on create must fail");
-    assert_eq!(inv_create_res.unwrap_err().code, sinopec_server::error::ErrorCode::InvalidRequest);
+    assert!(
+        inv_create_res.is_err(),
+        "Inverted dates on create must fail"
+    );
+    assert_eq!(
+        inv_create_res.unwrap_err().code,
+        sinopec_server::error::ErrorCode::InvalidRequest
+    );
 
     let _ = std::fs::remove_dir_all(data_dir);
 }

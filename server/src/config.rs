@@ -80,7 +80,8 @@ impl AppConfig {
             .or_else(|| Some("http://192.168.8.11:8111".to_string()));
         let sinopec_base_url = env::var("SINOPEC_BASE_URL")
             .unwrap_or_else(|_| "https://www.sinopecsales.com".to_string());
-        let admin_username = env::var("SINOPEC_ADMIN_USERNAME").unwrap_or_else(|_| "ashan".to_string());
+        let admin_username =
+            env::var("SINOPEC_ADMIN_USERNAME").unwrap_or_else(|_| "ashan".to_string());
         let admin_password = env::var("SINOPEC_ADMIN_PASSWORD")
             .ok()
             .or_else(|| env::var("DEFAULT_COMMON_PASSWORD").ok())
