@@ -33,6 +33,8 @@ fn test_config(research_mode: bool) -> AppConfig {
         steel_cdp_url: "ws://127.0.0.1:19223".to_string(),
         scrapling_base_url: None,
         sinopec_base_url: "http://127.0.0.1:19999".to_string(),
+        admin_username: "ashan".to_string(),
+        admin_password: None,
     }
 }
 

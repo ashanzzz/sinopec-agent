@@ -1341,34 +1341,96 @@ impl SinopecHttpTransport {
         start_date: &str,
         end_date: &str,
     ) -> AppResult<Vec<serde_json::Value>> {
-        let url = format!(
-            "{}/corpgas/webjsp/billQueryAction_yuFenPeiLog.json",
-            self.base_url
-        );
-        let params = [
-            ("cardMember.cardNo", master_card_no),
-            ("startTime", start_date),
-            ("endTime", end_date),
-        ];
-        let resp = self
-            .client
-            .post(&url)
-            .header("Cookie", self.cookie_header().await)
-            .header(
-                "Referer",
-                format!("{}/corpgas/res/html/login/login_pc.jsp", self.base_url),
-            )
-            .header("X-Requested-With", "XMLHttpRequest")
-            .form(&params)
-            .send()
-            .await?;
-        let text = Self::decode_response_text(resp).await?;
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-            if let Some(list) = json.get("list").and_then(|v| v.as_array()) {
-                return Ok(list.clone());
+        use chrono::Datelike;
+        // Sinopec upstream billQueryAction_yuFenPeiLog.json silently truncates queries spanning multiple months
+        // to only the first month of startTime. We automatically slice into calendar month chunks.
+        let ranges = if let (Ok(d1), Ok(d2)) = (
+            chrono::NaiveDate::parse_from_str(start_date, "%Y-%m-%d"),
+            chrono::NaiveDate::parse_from_str(end_date, "%Y-%m-%d"),
+        ) {
+            if d1 > d2 {
+                return Ok(Vec::new());
+            }
+            let mut list = Vec::new();
+            let mut cur = d1;
+            while cur <= d2 {
+                let (y, m) = (cur.year(), cur.month());
+                let last_day = if m == 12 {
+                    chrono::NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap().pred_opt().unwrap().day()
+                } else {
+                    chrono::NaiveDate::from_ymd_opt(y, m + 1, 1).unwrap().pred_opt().unwrap().day()
+                };
+                let m_end = chrono::NaiveDate::from_ymd_opt(y, m, last_day).unwrap();
+                let actual_end = std::cmp::min(m_end, d2);
+                list.push((
+                    cur.format("%Y-%m-%d").to_string(),
+                    actual_end.format("%Y-%m-%d").to_string(),
+                ));
+                if m_end >= d2 {
+                    break;
+                }
+                cur = if m == 12 {
+                    chrono::NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap()
+                } else {
+                    chrono::NaiveDate::from_ymd_opt(y, m + 1, 1).unwrap()
+                };
+            }
+            list
+        } else {
+            vec![(start_date.to_string(), end_date.to_string())]
+        };
+
+        let mut all_records = Vec::new();
+        let mut seen_keys = std::collections::HashSet::new();
+
+        for (chunk_start, chunk_end) in ranges {
+            let url = format!(
+                "{}/corpgas/webjsp/billQueryAction_yuFenPeiLog.json",
+                self.base_url
+            );
+            let params = [
+                ("cardMember.cardNo", master_card_no),
+                ("startTime", chunk_start.as_str()),
+                ("endTime", chunk_end.as_str()),
+            ];
+            let resp = self
+                .client
+                .post(&url)
+                .header("Cookie", self.cookie_header().await)
+                .header(
+                    "Referer",
+                    format!("{}/corpgas/res/html/login/login_pc.jsp", self.base_url),
+                )
+                .header("X-Requested-With", "XMLHttpRequest")
+                .form(&params)
+                .send()
+                .await?;
+            let text = Self::decode_response_text(resp).await?;
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(list) = json.get("list").and_then(|v| v.as_array()) {
+                    for item in list {
+                        let key = format!(
+                            "{}_{}_{}",
+                            item.get("opeTime").and_then(|v| v.as_str()).unwrap_or(""),
+                            item.get("cardNo").and_then(|v| v.as_str()).unwrap_or(""),
+                            item.get("amount").and_then(|v| v.as_i64()).unwrap_or(0)
+                        );
+                        if seen_keys.insert(key) {
+                            all_records.push(item.clone());
+                        }
+                    }
+                }
             }
         }
-        Ok(Vec::new())
+
+        // Sort descending by opeTime
+        all_records.sort_by(|a, b| {
+            let t_a = a.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            let t_b = b.get("opeTime").and_then(|v| v.as_str()).unwrap_or("");
+            t_b.cmp(t_a)
+        });
+
+        Ok(all_records)
     }
 
     pub async fn query_card_transaction_logs(
