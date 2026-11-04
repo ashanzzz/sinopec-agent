@@ -895,7 +895,8 @@ async fn local_sync_trigger_handler(
     State(state): State<AppState>,
 ) -> AppResult<Json<ApiEnvelope<Value>>> {
     let auth = state.service.auth_status().await?;
-    let now_str = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let beijing = chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+    let now_str = beijing.format("%Y-%m-%d %H:%M:%S").to_string();
 
     if !auth.verified {
         let last_synced = state
@@ -934,7 +935,7 @@ async fn local_sync_trigger_handler(
     }
     let quancun_count = state.store.save_local_quancun(&all_quancun).await?;
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let today = beijing.format("%Y-%m-%d").to_string();
     let start_date = "2026-01-01";
     let invoices_val = state
         .http

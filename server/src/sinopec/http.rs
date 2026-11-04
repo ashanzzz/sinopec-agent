@@ -1431,7 +1431,8 @@ impl SinopecHttpTransport {
             .await
             .unwrap_or_else(|_| "1000111200006330729".to_string());
 
-        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let beijing = chrono::Utc::now().with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap());
+        let today = beijing.format("%Y-%m-%d").to_string();
 
         // 1. Live probe corporate balance (Master card + pool)
         let live_probe = self.probe_corporate_balance().await.ok().flatten();

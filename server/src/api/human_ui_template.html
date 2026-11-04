@@ -564,22 +564,10 @@ animation: pulseBorder 1.5s infinite;
 <span>用户: <strong id="user-session-name">ashan</strong></span>
 <button type="button" class="btn btn-outline" style="padding:3px 8px;font-size:11px;color:#dc2626;" onclick="handleAdminLogout()">退出</button>
 </div>
-<button type="button" class="btn btn-outline" id="btn-view-steel-screen" onclick="openSteelLiveModal()">
-<svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-<span>查看远程实时画面</span>
-</button>
-<button type="button" class="btn btn-outline" id="btn-prewarm" onclick="prewarmBrowser()">
-<svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-<span>预热远程浏览器</span>
-</button>
 <button type="button" class="btn btn-outline" id="btn-check-auth" onclick="checkRemoteAuth(true)">
 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-<span>探活检验</span>
+<span>网厅探活检验</span>
 </button>
-<a class="btn btn-outline" href="__VIEWER__" target="_blank" rel="noreferrer">
-<svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-<span>Steel 远程浏览器</span>
-</a>
 </div>
 </div>
 </header>
@@ -671,11 +659,11 @@ animation: pulseBorder 1.5s infinite;
 </div>
 <div style="background:#ffffff;border:1px solid var(--border-subtle);border-radius:6px;padding:12px;">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-<span style="font-size:12px;font-weight:700;color:var(--text-secondary);">3. Steel 远程浏览器</span>
-<span id="diag-steel-badge" class="chip">检测中</span>
+<span style="font-size:12px;font-weight:700;color:var(--text-secondary);">3. 本地 SQLite 数据引擎</span>
+<span id="diag-steel-badge" class="chip" style="color:#166534;">在线就绪</span>
 </div>
-<div style="font-size:15px;font-weight:800;color:var(--text-primary);" id="diag-steel-status">正在检测 CDP 连通性...</div>
-<div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="diag-steel-details">Unraid 192.168.8.11:13000</div>
+<div style="font-size:15px;font-weight:800;color:var(--text-primary);" id="diag-steel-status">本地持久化正常</div>
+<div style="font-size:12px;color:var(--text-muted);margin-top:4px;" id="diag-steel-details">/data/sinopec.db (离线台账与发票持久化)</div>
 </div>
 </div>
 <!-- State A: Authenticated Status Hub (Visible when logged in) -->
@@ -2755,40 +2743,5 @@ loadIssuedInvoices();
 loadAllocations();
 setInterval(pollSystemStatus, 30000);
 </script>
-<!-- Steel Live Browser Modal -->
-<div id="steel-modal-backdrop" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.75);z-index:99998;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);">
-<div style="background:#ffffff;border-radius:12px;max-width:960px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #cbd5e1;">
-<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;">
-<div>
-<div style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
-<span class="dot online"></span> Unraid Steel 远程浏览器 · 实时画面 (Chrome @ 192.168.8.11:13000)
-</div>
-<div style="font-size:12px;color:#64748b;margin-top:2px;" id="steel-modal-url">URL: 正在获取...</div>
-</div>
-<div style="display:flex;gap:8px;align-items:center;">
-<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="refreshSteelScreenshot()">
-<svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-<span>刷新画面</span>
-</button>
-<a class="btn btn-outline" style="padding:4px 10px;font-size:12px;" href="__VIEWER__" target="_blank" rel="noreferrer">
-<svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-<span>打开桌面</span>
-</a>
-<button type="button" class="btn btn-outline" style="padding:4px 10px;font-size:12px;color:#dc2626;" onclick="closeSteelModal()">
-<svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-<span>关闭</span>
-</button>
-</div>
-</div>
-<div style="padding:20px;overflow-y:auto;flex:1;background:#0f172a;text-align:center;">
-<div id="steel-modal-loading" style="color:#94a3b8;padding:40px;font-size:14px;">正在调取 CDP Page.captureScreenshot 实时抓取屏幕...</div>
-<img id="steel-modal-img" style="display:none;max-width:100%;border-radius:6px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);border:1px solid #334155;" />
-</div>
-<div style="padding:10px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;display:flex;justify-content:space-between;align-items:center;">
-<span>真实状态：通过 CDP 协议直连 Chromium 获取当前渲染帧 · 绝无模拟虚构</span>
-<span id="steel-modal-time"></span>
-</div>
-</div>
-</div>
 </body>
 </html>
